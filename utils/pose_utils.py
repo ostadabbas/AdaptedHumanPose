@@ -25,7 +25,7 @@ def world2cam(world_coord, R, T):
     return cam_coord
 
 
-def rigid_transform_3D(A, B):
+def rigid_transform_3D(A, B): # solve sum(R*A + T - B)^2 smallest
     centroid_A = np.mean(A, axis = 0)
     centroid_B = np.mean(B, axis = 0)
     H = np.dot(np.transpose(A - centroid_A), B - centroid_B)
@@ -62,7 +62,7 @@ def get_bbox(joint_img):
 
 def warp_coord_to_original(joint_out, bbox, center_cam):
 
-    # joint_out: output from soft-argmax
+    # joint_out: output from soft-argmax, x,y (pix:oriImg)  z[mm: cam]
     x = joint_out[:, 0] / cfg.output_shape[1] * bbox[2] + bbox[0]
     y = joint_out[:, 1] / cfg.output_shape[0] * bbox[3] + bbox[1]
     z = (joint_out[:, 2] / cfg.depth_dim * 2. - 1.) * (cfg.bbox_3d_shape[0]/2.) + center_cam[2]
@@ -76,7 +76,7 @@ def transform_joint_to_other_db(src_joint, src_name, dst_name):
 
     new_joint = np.zeros(((dst_joint_num,) + src_joint.shape[1:]))
 
-    for src_idx in range(len(src_name)):
+    for src_idx in range(len(src_name)):    # all 0, then ori name in tar index, assign value
         name = src_name[src_idx]
         if name in dst_name:
             dst_idx = dst_name.index(name)
@@ -134,3 +134,14 @@ def flip(tensor, dims):
     assert flipped.requires_grad == tensor.requires_grad
     return flipped
 
+def get_boneLen(joints, skeleton):
+    '''
+    get the bone length in mm based on the joints and skeleton definition. These can be gotten from ds definition. for 2d,3d both.
+    :param joints:
+    :param skeleton:
+    :return:
+    '''
+    s = 0
+    for e in skeleton:
+        s += ((joints[e[0]] - joints[e[1]]) ** 2).sum() ** 0.5
+    return s

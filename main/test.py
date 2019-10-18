@@ -31,14 +31,14 @@ def parse_args():
 def main():
 
     args = parse_args()
-    cfg.set_args(args.gpu_ids)
+    cfg.set_args(args.gpu_ids)      # set gpu ids in here
     cudnn.fastest = True
     cudnn.benchmark = True
     cudnn.deterministic = False
     cudnn.enabled = True
 
     tester = Tester(args.test_epoch)
-    tester._make_batch_generator()
+    tester._make_batch_generator(ds_dir=cfg.ds_dir)
     tester._make_model()
 
     preds = []
@@ -75,7 +75,7 @@ def main():
             preds.append(coord_out)
             
     # evaluate
-    preds = np.concatenate(preds, axis=0)
+    preds = np.concatenate(preds, axis=0)   # x,y,z :HM
     tester._evaluate(preds, cfg.result_dir)    
 
 if __name__ == "__main__":

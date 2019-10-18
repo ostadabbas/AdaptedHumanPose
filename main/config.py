@@ -3,6 +3,9 @@ import os.path as osp
 import sys
 import numpy as np
 
+# task:
+# change all Config thing to parser format, cfg = parser.parse_args() for cluster convenience
+
 class Config:
     
     ## dataset
@@ -14,18 +17,19 @@ class Config:
 
     # testing set
     # Human36M, MuPoTS, MSCOCO
-    testset = 'Human36M'
-
+    # testset = 'Human36M'
+    testset = 'MSCOCO'
     ## directory
     cur_dir = osp.dirname(os.path.abspath(__file__))
     root_dir = osp.join(cur_dir, '..')
-    data_dir = osp.join(root_dir, 'data')
+    data_tool_dir = osp.join(root_dir, 'data')
+    ds_dir = '/scratch/liu.shu/datasets'        # discovery true locations
     output_dir = osp.join(root_dir, 'output')
     model_dir = osp.join(output_dir, 'model_dump')
     vis_dir = osp.join(output_dir, 'vis')
     log_dir = osp.join(output_dir, 'log')
     result_dir = osp.join(output_dir, 'result')
- 
+    cocoapi_dir = '/scratch/liu.shu/codesPool/cocoapi/PythonAPI'        # cluster coco
     ## model setting
     resnet_type = 50 # 50, 101, 152
     
@@ -34,12 +38,12 @@ class Config:
     output_shape = (input_shape[0]//4, input_shape[1]//4)
     depth_dim = 64
     bbox_3d_shape = (2000, 2000, 2000) # depth, height, width
-    pixel_mean = (0.485, 0.456, 0.406)
+    pixel_mean = (0.485, 0.456, 0.406)  # perhaps for RGB normalization  after divide by 255
     pixel_std = (0.229, 0.224, 0.225)
 
     ## training config
     lr_dec_epoch = [17, 21]
-    end_epoch = 25
+    end_epoch = 2   # default 25,  2 for test purpose
     lr = 1e-3
     lr_dec_factor = 10
     batch_size = 32
@@ -66,10 +70,11 @@ cfg = Config()
 
 sys.path.insert(0, osp.join(cfg.root_dir, 'common'))
 from utils.dir_utils import add_pypath, make_folder
-add_pypath(osp.join(cfg.data_dir))
+add_pypath(osp.join(cfg.data_tool_dir))
 for i in range(len(cfg.trainset)):
-    add_pypath(osp.join(cfg.data_dir, cfg.trainset[i]))
-add_pypath(osp.join(cfg.data_dir, cfg.testset))
+    add_pypath(osp.join(cfg.data_tool_dir, cfg.trainset[i]))
+add_pypath(cfg.cocoapi_dir)     # add coco dir to it
+add_pypath(osp.join(cfg.data_tool_dir, cfg.testset))
 make_folder(cfg.model_dir)
 make_folder(cfg.vis_dir)
 make_folder(cfg.log_dir)

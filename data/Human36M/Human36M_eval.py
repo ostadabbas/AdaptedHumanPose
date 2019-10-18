@@ -72,6 +72,6 @@ def calculate_score(output_path, annot_dir, subject_list):
 
 if __name__ == '__main__':
     output_path = './bbox_root_pose_human36m_output.json'
-    annot_dir = './data/annotations'
+    annot_dir = './data/annotations'        # will change if needed
     calculate_score(output_path, annot_dir, [9,11])
 

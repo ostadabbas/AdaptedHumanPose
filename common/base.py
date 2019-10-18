@@ -19,7 +19,7 @@ from model import get_pose_net
 for i in range(len(cfg.trainset)):
     exec('from ' + cfg.trainset[i] + ' import ' + cfg.trainset[i])
 exec('from ' + cfg.testset + ' import ' + cfg.testset)
-
+# task: pass in the ds_dir to change data loading location
 class Base(object):
     __metaclass__ = abc.ABCMeta
 
@@ -59,16 +59,16 @@ class Base(object):
         return start_epoch, model, optimizer
 
 class Trainer(Base):
-    
     def __init__(self):
         super(Trainer, self).__init__(log_name = 'train_logs.txt')
+        # self.ds_dir = ds_dir
 
     def get_optimizer(self, model):
         
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
         return optimizer
 
-    def set_lr(self, epoch):
+    def set_lr(self, epoch):    # needs to in model
         for e in cfg.lr_dec_epoch:
             if epoch < e:
                 break
@@ -85,23 +85,24 @@ class Trainer(Base):
             cur_lr = g['lr']
 
         return cur_lr
-    def _make_batch_generator(self):
+    def _make_batch_generator(self, ds_dir='../data'):        # '_' for private var
         # data load and construct batch generator
         self.logger.info("Creating dataset...")
         trainset_loader = []
         batch_generator = []
-        iterator = []
+        iterator = []   # make it into iterator form
         for i in range(len(cfg.trainset)):
-            if i > 0:
-                ref_joints_name = trainset_loader[0].joints_name
+            if i > 0: ## no if, all to human3.6M set directly here. not evaluate torso, nose!
+                ref_joints_name = trainset_loader[0].joints_name    # first for human3.6M as ref, others all to
             else:
                 ref_joints_name = None
-            trainset_loader.append(DatasetLoader(eval(cfg.trainset[i])("train"), ref_joints_name, True, transforms.Compose([\
+            trainset_loader.append(DatasetLoader(eval(cfg.trainset[i])("train", ds_dir=ds_dir), ref_joints_name, True, transforms.Compose([\
                                                                                                         transforms.ToTensor(),
                                                                                                         transforms.Normalize(mean=cfg.pixel_mean, std=cfg.pixel_std)]\
                                                                                                         )))
+            # DatasetLoader, customized, simply provides item and len.
             batch_generator.append(DataLoader(dataset=trainset_loader[-1], batch_size=cfg.num_gpus*cfg.batch_size//len(cfg.trainset), shuffle=True, num_workers=cfg.num_thread, pin_memory=True))
-            iterator.append(iter(batch_generator[-1]))
+            iterator.append(iter(batch_generator[-1]))  # iter, each time return 1 item iter.next or for
         
         self.joint_num = trainset_loader[0].joint_num
         self.itr_per_epoch = math.ceil(trainset_loader[0].__len__() / cfg.num_gpus / (cfg.batch_size // len(cfg.trainset)))
@@ -113,7 +114,7 @@ class Trainer(Base):
         self.logger.info("Creating graph and optimizer...")
         model = get_pose_net(cfg, True, self.joint_num)
         model = DataParallel(model).cuda()
-        optimizer = self.get_optimizer(model)
+        optimizer = self.get_optimizer(model)   # model parameter in optimizer
         if cfg.continue_train:
             start_epoch, model, optimizer = self.load_model(model, optimizer)
         else:
@@ -130,15 +131,15 @@ class Tester(Base):
         self.test_epoch = int(test_epoch)
         super(Tester, self).__init__(log_name = 'test_logs.txt')
 
-    def _make_batch_generator(self):
+    def _make_batch_generator(self, ds_dir='../data'):
         # data load and construct batch generator
         self.logger.info("Creating dataset...")
-        testset = eval(cfg.testset)("test")
+        testset = eval(cfg.testset)("test", ds_dir=ds_dir)
         testset_loader = DatasetLoader(testset, None, False, transforms.Compose([\
                                                                                                         transforms.ToTensor(),
                                                                                                         transforms.Normalize(mean=cfg.pixel_mean, std=cfg.pixel_std)]\
                                                                                                         ))
-        batch_generator = DataLoader(dataset=testset_loader, batch_size=cfg.num_gpus*cfg.test_batch_size, shuffle=False, num_workers=cfg.num_thread, pin_memory=True)
+        batch_generator = DataLoader(dataset=testset_loader, batch_size=cfg.num_gpus*cfg.test_batch_size, shuffle=False, num_workers=cfg.num_thread, pin_memory=True)       # no shuffle at all.
         
         self.testset = testset
         self.joint_num = testset_loader.joint_num

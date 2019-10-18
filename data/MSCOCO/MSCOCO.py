@@ -13,12 +13,14 @@ from utils.vis import vis_keypoints, vis_3d_skeleton
 
 
 class MSCOCO:
-    def __init__(self, data_split):
+    def __init__(self, data_split, opts={}):
         self.data_split = data_split
-        self.img_dir = osp.join('..', 'data', 'MSCOCO', 'images')
-        self.train_annot_path = osp.join('..', 'data', 'MSCOCO', 'annotations', 'person_keypoints_train2017.json')
-        self.test_annot_path = osp.join('..', 'data', 'MSCOCO', 'annotations', 'person_keypoints_val2017.json')
-        self.human_3d_bbox_root_dir = osp.join('..', 'data', 'MSCOCO', 'bbox_root', 'bbox_root_coco_output.json')
+        self.ds_dir = opts.ds_dir
+        # self.img_dir = osp.join('..', 'data', 'MSCOCO', 'images')
+        self.img_dir = osp.join(opts.ds_dir, 'MSCOCO', 'images')
+        self.train_annot_path = osp.join(opts.ds_dir, 'MSCOCO', 'annotations', 'person_keypoints_train2017.json')
+        self.test_annot_path = osp.join(opts.ds_dir, 'MSCOCO', 'annotations', 'person_keypoints_val2017.json')
+        self.human_3d_bbox_root_dir = osp.join(opts.ds_dir, 'MSCOCO', 'bbox_root', 'bbox_root_coco_output.json')
         
         if self.data_split == 'train':
             self.joint_num = 19 # original: 17, but manually added 'Thorax', 'Pelvis'

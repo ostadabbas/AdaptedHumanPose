@@ -1,6 +1,7 @@
 function draw_3Dpose_coco()
  
-    root_path = '/mnt/hdd1/Data/Human_pose_estimation/COCO/2017/val2017/';
+%    root_path = '/mnt/hdd1/Data/Human_pose_estimation/COCO/2017/val2017/';
+    root_path = '/scratch/liu.shu/datasets/MSCOCO/images/val2017/';
     save_path = './vis/';
     num_joint =  17;
 
@@ -51,8 +52,10 @@ function draw_3Dpose_coco()
     skeleton = transpose(reshape(skeleton,[2,16])) + 1;
 
     fp_img_name = fopen('../coco_img_name.txt');
-    preds_2d_kpt = load('preds_2d_kpt_coco.mat');
-    preds_3d_kpt = load('preds_3d_kpt_coco.mat');
+%     preds_2d_kpt = load('preds_2d_kpt_coco.mat');
+    preds_2d_kpt = load('../../output/result/preds_2d_kpt_coco.mat');
+    % preds_3d_kpt = load('preds_3d_kpt_coco.mat');
+    preds_3d_kpt = load('../../output/result/preds_3d_kpt_coco.mat');
 
     img_name = fgetl(fp_img_name);
     while ischar(img_name)

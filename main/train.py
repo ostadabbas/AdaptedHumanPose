@@ -30,7 +30,7 @@ def main():
     cudnn.benchmark = True
 
     trainer = Trainer()
-    trainer._make_batch_generator()
+    trainer._make_batch_generator(ds_dir=cfg.ds_dir)
     trainer._make_model()
 
     # train
@@ -43,11 +43,11 @@ def main():
         for itr in range(trainer.itr_per_epoch):
             
             input_img_list, joint_img_list, joint_vis_list, joints_have_depth_list = [], [], [], []
-            for i in range(len(cfg.trainset)):
+            for i in range(len(cfg.trainset)):  # loop set
                 try:
-                    input_img, joint_img, joint_vis, joints_have_depth = next(trainer.iterator[i])
+                    input_img, joint_img, joint_vis, joints_have_depth = next(trainer.iterator[i])      # iterator, bch_gen all list. next bch
                 except StopIteration:
-                    trainer.iterator[i] = iter(trainer.batch_generator[i])
+                    trainer.iterator[i] = iter(trainer.batch_generator[i])  # set again suppose to be set already
                     input_img, joint_img, joint_vis, joints_have_depth = next(trainer.iterator[i])
 
                 input_img_list.append(input_img)
@@ -64,7 +64,7 @@ def main():
             # shuffle items from different datasets
             rand_idx = []
             for i in range(len(cfg.trainset)):
-                rand_idx.append(torch.arange(i,input_img.shape[0],len(cfg.trainset)))
+                rand_idx.append(torch.arange(i,input_img.shape[0],len(cfg.trainset)))   # len(trainSet) interval 0,2,4,....then [1,3,5...]  not necessary batch is not input channel actually
             rand_idx = torch.cat(rand_idx,dim=0)
             rand_idx = rand_idx[torch.randperm(input_img.shape[0])]
             input_img = input_img[rand_idx]; joint_img = joint_img[rand_idx]; joint_vis = joint_vis[rand_idx]; joints_have_depth = joints_have_depth[rand_idx];
@@ -76,7 +76,7 @@ def main():
             trainer.optimizer.zero_grad()
             
             # forward
-            loss_coord = trainer.model(input_img, target)
+            loss_coord = trainer.model(input_img, target) # direct loss?
             loss_coord = loss_coord.mean()
 
             # backward
@@ -101,6 +101,7 @@ def main():
             trainer.tot_timer.tic()
             trainer.read_timer.tic()
 
+        # save every epoch?
         trainer.save_model({
             'epoch': epoch,
             'network': trainer.model.state_dict(),
