@@ -31,7 +31,7 @@ def main():
 
     trainer = Trainer()
     trainer._make_batch_generator(ds_dir=cfg.ds_dir)
-    trainer._make_model()
+    trainer._make_model() # build init, paral then load
 
     # train
     for epoch in range(trainer.start_epoch, cfg.end_epoch):
@@ -104,7 +104,7 @@ def main():
         # save every epoch?
         trainer.save_model({
             'epoch': epoch,
-            'network': trainer.model.state_dict(),
+            'network': trainer.model.state_dict(),      # model is parallel
             'optimizer': trainer.optimizer.state_dict(),
         }, epoch)
         

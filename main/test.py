@@ -6,8 +6,9 @@ from config import cfg
 import torch
 from base import Tester
 from utils.vis import vis_keypoints
-from utils.pose_utils import flip
+from utils.utils_pose import flip
 import torch.backends.cudnn as cudnn
+import os.path as osp
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -47,7 +48,8 @@ def main():
         for itr, input_img in enumerate(tqdm(tester.batch_generator)):
             
             # forward
-            coord_out = tester.model(input_img)
+            input_img = input_img['img_patch']
+            coord_out = tester.model(input_img)     # never change ref, so can't work across model
 
             if cfg.flip_test:
                 flipped_input_img = flip(input_img, dims=3)
@@ -76,6 +78,8 @@ def main():
             
     # evaluate
     preds = np.concatenate(preds, axis=0)   # x,y,z :HM
+    # save the preds ,
+    np.save(osp.join(cfg.result_dir, 'preds_tmp.npy'), preds)
     tester._evaluate(preds, cfg.result_dir)    
 
 if __name__ == "__main__":

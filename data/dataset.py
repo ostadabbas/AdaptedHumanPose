@@ -7,12 +7,14 @@ import copy
 import math
 from torch.utils.data.dataset import Dataset
 from utils.vis import vis_keypoints, vis_3d_skeleton
-from utils.pose_utils import fliplr_joints, transform_joint_to_other_db
+from utils.utils_pose import fliplr_joints, transform_joint_to_other_db
 # from config import cfg
 from math import floor
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-from utils import pose_utils
+from utils import utils_pose
+
+skel_def = {'h36m'}
 
 class AdpDataset_3d(Dataset):
 	'''
@@ -25,9 +27,9 @@ class AdpDataset_3d(Dataset):
 		self.skeleton = db.skeleton
 		self.flip_pairs = db.flip_pairs
 		self.joints_have_depth = db.joints_have_depth
+		self.if_SYN = db.if_SYN     # ds determined
 		self.joints_name = db.joints_name
 		self.ref_joints_name = ref_joints_name
-
 		self.transform = transform
 		self.is_train = is_train
 		self.opts = opts
@@ -43,6 +45,7 @@ class AdpDataset_3d(Dataset):
 		skeleton = self.skeleton
 		flip_pairs = self.flip_pairs
 		joints_have_depth = self.joints_have_depth
+		if_SYN = self.if_SYN
 
 		data = copy.deepcopy(self.db[index])
 
@@ -80,20 +83,16 @@ class AdpDataset_3d(Dataset):
 
 		for i in range(len(joint_img)): # 2d first for boneLen calculation
 			joint_img[i, 0:2] = trans_point2d(joint_img[i, 0:2], trans) # to pix:patch under input_shape size
-		if 'y' == self.opts.if_normBone:
-			if 'joint_cam' in data.keys():
-				joint_2d = joint_img[:, 0:2]
-				joint_cam = data.joint_cam
-				# boneLen3d = data['boneLen3d']
-				boneLen2d_pix = pose_utils.get_boneLen(joint_2d, skeleton)  # rescaled bone
-				boneLen2d_mm = pose_utils.get_boneLen(joint_cam[:,:2])
-				rt2d_3d = boneLen2d_pix / boneLen2d_mm
-				joint_img[:,2] *= rt2d_3d/self.opts.inp_sz    # z = z*2d/3d /inp_size/  normalize to image size. Note, people usually use square space, yet for tight BB, sometimes it is possible depth is larger then 2d space. so I keep x:y:z = 1:1:2 ratio to include distant z. Estimation use standard z
-			else:
-				print('no joint_cam info, employ 3d bb normalization instead')
-				joint_img[:, 2] /= self.opts.bbox_3d_shape[0] / 2.
+		if 'joint_cam' in data.keys() and 'y' == self.opts.if_normBone:
+			joint_2d = joint_img[:, 0:2]
+			joint_cam = data.joint_cam
+			# boneLen3d = data['boneLen3d']
+			boneLen2d_pix = utils_pose.get_boneLen(joint_2d, skeleton)  # rescaled bone
+			boneLen2d_mm = utils_pose.get_boneLen(joint_cam[:, :2])
+			rt2d_3d = boneLen2d_pix / boneLen2d_mm
+			joint_img[:,2] *= rt2d_3d/self.opts.input_shape[0]    # z = z*2d/3d /inp_size/  normalize to image size. Note, people usually use square space, yet for tight BB, sometimes it is possible depth is larger then 2d space. so I keep x:y:z = 1:1:2 ratio to include distant z. Estimation use standard z
 		else:       # fix box norm
-			joint_img[:,2] /= self.opts.bbox_3d_shape[0] / 2.   # to -1,1
+			joint_img[:, 2] /= self.opts.bbox_3d_shape[0] / 2.   # to -1,1
 
 		for i in range(len(joint_img)):
 			joint_img[i, 2] = (joint_img[i, 2] + 1.0) / 2.  # 0~1 normalize
@@ -125,29 +124,28 @@ class AdpDataset_3d(Dataset):
 		joint_img[:, 1] = joint_img[:, 1] / self.opts.input_shape[0] * self.opts.output_shape[0]
 		joint_img[:, 2] = joint_img[:, 2] * self.opts.depth_dim
 
-		if self.is_train:
-			img_patch = self.transform(img_patch)
+		# if self.is_train: # ds completeness assumption, can feed all always
+		img_patch = self.transform(img_patch)
 
-			if self.ref_joints_name is not None:
-				joint_img = transform_joint_to_other_db(joint_img, self.joints_name, self.ref_joints_name)
-				joint_vis = transform_joint_to_other_db(joint_vis, self.joints_name,
-				                                        self.ref_joints_name)  # invisible to no exist one
+		if self.ref_joints_name is not None:
+			joint_img = transform_joint_to_other_db(joint_img, self.joints_name, self.ref_joints_name)
+			joint_vis = transform_joint_to_other_db(joint_vis, self.joints_name,
+			                                        self.ref_joints_name)  # invisible to no exist one
 
-			joint_img = joint_img.astype(np.float32)
-			joint_vis = (joint_vis > 0).astype(np.float32)
-			joints_have_depth = np.array([joints_have_depth]).astype(np.float32)
+		joint_img = joint_img.astype(np.float32)        # x,y,z, hm
+		joint_vis = (joint_vis > 0).astype(np.float32)
+		joints_have_depth = np.array([joints_have_depth]).astype(np.float32) # into 1 D array
+		if_SYN = np.array([if_SYN]).astype(np.float32)    # bool -> float32
 
-			# return img_patch, joint_img, joint_vis, joints_have_depth # single item
-			return {'img_patch':img_patch, 'joint_img':joint_img, 'joint_vis':joint_vis, 'joints_have_depth':joints_have_depth}
 
-		else:
-			img_patch = self.transform(img_patch)
-			return {'img_patch':img_patch}
-
+		# return img_patch, joint_img, joint_vis, joints_have_depth # single item
+		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis':joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v':if_SYN}
+		# else:
+		# 	img_patch = self.transform(img_patch)
+		# 	return {'img_patch':img_patch}
 
 	def __len__(self):
 		return len(self.db)
-
 
 # helper functions
 def get_aug_config():
@@ -274,10 +272,8 @@ def genDsLoader(opts, mode=0):
 	trans = transforms.Compose([
 		transforms.ToTensor(),
 		transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
-
 	if 0 == mode:
 		adpDs_li, loader_li, iter_li = [], [], []
-
 		for i in range(len(opts.trainset)):
 			ds = eval(opts.trainset[i])("train", opts=opts)
 			ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, True, trans, opts=opts)
@@ -288,23 +284,37 @@ def genDsLoader(opts, mode=0):
 			loader_li.append(loader)
 			iter_li.append(iterator)
 		return adpDs_li, loader_li, iter_li
-
 	elif 1 == mode:
-		ds = eval(opts.testset)("train", opts=opts)
+		ds = eval(opts.testset)("test", opts=opts)
 		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)
 		loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
 		                    shuffle=True, num_workers=opts.n_thread, pin_memory=True)
 		iterator = iter(loader)
-
 		return ds_adp, loader, iterator
 	elif 2 == mode:
-		ds = eval(opts.testset)("train", opts=opts)
+		ds = eval(opts.testset)("testInLoop", opts=opts)
 		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)   # few test in loop
 		loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
 		                    shuffle=True, num_workers=opts.n_thread, pin_memory=True)
 		iterator = iter(loader)
-
 		return ds_adp, loader, iterator
 	else:
 		print('no such mode defined')
 		return -1
+
+def genLoaderFromDs(ds, trans=None, opts={}):
+	'''
+	directly translate input ds input loader and adp_ds
+	:param ds:
+	:return:
+	'''
+	if not trans:       #if not given, give tensor normalization to overide
+		trans = transforms.Compose([
+			transforms.ToTensor(),
+			transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
+
+	ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, True, trans, opts=opts)
+	loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset), shuffle=True, num_workers=opts.n_thread, pin_memory=True)
+	iterator = iter(loader)
+
+	return ds_adp, loader, iterator

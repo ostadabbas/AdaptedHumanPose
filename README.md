@@ -12,7 +12,13 @@
 <img src="https://cv.snu.ac.kr/research/3DMPPE/figs/video1.gif" width="400" height="300"> <img src="https://cv.snu.ac.kr/research/3DMPPE/figs/video2.gif" width="400" height="300">
 </p>
 
-
+## changes, need to do 
+* install the [cocoapi](https://github.com/philferriere/cocoapi)
+   this version supports windows. For linux, you can also use the offical release.    
+cd to folder pythonAPI  
+`python setup.py install`
+will install package to python packages 
+ 	
 ## Introduction
 
 This repo is official **[PyTorch](https://pytorch.org)** implementation of **[Camera Distance-aware Top-down Approach for 3D Multi-person Pose Estimation from a Single RGB Image (ICCV 2019)](https://arxiv.org/abs/1907.11346)**. It contains **PoseNet** part.

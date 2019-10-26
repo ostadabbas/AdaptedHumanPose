@@ -13,12 +13,14 @@ class Config:
     # 3D: Human36M, MuCo
     # 2D: MSCOCO, MPII 
     # Note that list must consists of one 3D dataset (first element of the list) + several 2D datasets
-    trainset = ['Human36M']   
+    trainset = ['Human36M']
 
     # testing set
     # Human36M, MuPoTS, MSCOCO
     # testset = 'Human36M'
-    testset = 'MSCOCO'
+    # testset = 'MSCOCO'
+    testset = 'MuPoTS'
+    if_normBone = 'n'
     ## directory
     cur_dir = osp.dirname(os.path.abspath(__file__))
     root_dir = osp.join(cur_dir, '..')
@@ -68,8 +70,9 @@ class Config:
 
 cfg = Config()
 
+sys.path.insert(0, cfg.root_dir)
 sys.path.insert(0, osp.join(cfg.root_dir, 'common'))
-from utils.dir_utils import add_pypath, make_folder
+from utils.utils_tool import add_pypath, make_folder
 add_pypath(osp.join(cfg.data_tool_dir))
 for i in range(len(cfg.trainset)):
     add_pypath(osp.join(cfg.data_tool_dir, cfg.trainset[i]))

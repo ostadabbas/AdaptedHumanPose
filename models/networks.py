@@ -28,12 +28,12 @@ def get_norm_layer(norm_type='instance'):
     return norm_layer
 
 
-def get_scheduler(optimizer, opt):
+def get_scheduler(optimizer, opts):
     """Return a learning rate scheduler
 
     Parameters:
         optimizer          -- the optimizer of the network
-        opt (option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions．　
+        opts (option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions．　
                               opt.lr_policy is the name of learning rate policy: linear | step | plateau | cosine
 
     For 'linear', we keep the same learning rate for the first <opt.niter> epochs
@@ -41,19 +41,21 @@ def get_scheduler(optimizer, opt):
     For other schedulers (step, plateau, and cosine), we use the default PyTorch schedulers.
     See https://pytorch.org/docs/stable/optim.html for more details.
     """
-    if opt.lr_policy == 'linear':
+    if opts.lr_policy == 'linear':       # not working this one
         def lambda_rule(epoch):
-            lr_l = 1.0 - max(0, epoch + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
+            lr_l = 1.0 - max(0, epoch + opts.start_epoch - opts.niter) / float(opts.niter_decay + 1)
             return lr_l
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
-    elif opt.lr_policy == 'step':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
-    elif opt.lr_policy == 'plateau':
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
-    elif opt.lr_policy == 'cosine':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.niter, eta_min=0)
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule, last_epoch=opts.start_epoch - 1)
+    elif opts.lr_policy == 'step':
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=opts.lr_decay_iters, gamma=0.1, last_epoch=opts.start_epoch - 1)
+    elif opts.lr_policy == 'plateau':    # metric not updated no use
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5, last_epoch=opts.start_epoch - 1)
+    elif opts.lr_policy == 'cosine':
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opts.niter, eta_min=0, last_epoch=opts.start_epoch - 1)
+    elif opts.lr_policy == 'multi_step':
+        scheduler = lr_scheduler.MultiStepLR(optimizer, opts.lr_dec_epoch, last_epoch=opts.start_epoch - 1)    # gamma default one is 0.1
     else:
-        return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
+        return NotImplementedError('learning rate policy [%s] is not implemented', opts.lr_policy)
     return scheduler
 
 

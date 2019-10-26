@@ -9,9 +9,9 @@ import torch.optim
 import torchvision.transforms as transforms
 
 from config import cfg
-from dataset import DatasetLoader
-from timer import Timer
-from logger import colorlogger
+from data.dataset import AdpDataset_3d
+from utils.timer import Timer
+from utils.logger import Colorlogger
 from torch.nn.parallel.data_parallel import DataParallel
 from model import get_pose_net
 
@@ -33,7 +33,7 @@ class Base(object):
         self.read_timer = Timer()
 
         # logger
-        self.logger = colorlogger(cfg.log_dir, log_name=log_name)
+        self.logger = Colorlogger(cfg.log_dir, log_name=log_name)
 
     @abc.abstractmethod
     def _make_batch_generator(self):
@@ -96,10 +96,9 @@ class Trainer(Base):
                 ref_joints_name = trainset_loader[0].joints_name    # first for human3.6M as ref, others all to
             else:
                 ref_joints_name = None
-            trainset_loader.append(DatasetLoader(eval(cfg.trainset[i])("train", ds_dir=ds_dir), ref_joints_name, True, transforms.Compose([\
+            trainset_loader.append(AdpDataset_3d(eval(cfg.trainset[i])("train", ds_dir=ds_dir), ref_joints_name, True, transforms.Compose([\
                                                                                                         transforms.ToTensor(),
-                                                                                                        transforms.Normalize(mean=cfg.pixel_mean, std=cfg.pixel_std)]\
-                                                                                                        )))
+                                                                                                        transforms.Normalize(mean=cfg.pixel_mean, std=cfg.pixel_std)]), opts=cfg))
             # DatasetLoader, customized, simply provides item and len.
             batch_generator.append(DataLoader(dataset=trainset_loader[-1], batch_size=cfg.num_gpus*cfg.batch_size//len(cfg.trainset), shuffle=True, num_workers=cfg.num_thread, pin_memory=True))
             iterator.append(iter(batch_generator[-1]))  # iter, each time return 1 item iter.next or for
@@ -134,11 +133,10 @@ class Tester(Base):
     def _make_batch_generator(self, ds_dir='../data'):
         # data load and construct batch generator
         self.logger.info("Creating dataset...")
-        testset = eval(cfg.testset)("test", ds_dir=ds_dir)
-        testset_loader = DatasetLoader(testset, None, False, transforms.Compose([\
+        testset = eval(cfg.testset)("test", opts=cfg)
+        testset_loader = AdpDataset_3d(testset, None, False, transforms.Compose([\
                                                                                                         transforms.ToTensor(),
-                                                                                                        transforms.Normalize(mean=cfg.pixel_mean, std=cfg.pixel_std)]\
-                                                                                                        ))
+                                                                                                        transforms.Normalize(mean=cfg.pixel_mean, std=cfg.pixel_std)]), opts=cfg)
         batch_generator = DataLoader(dataset=testset_loader, batch_size=cfg.num_gpus*cfg.test_batch_size, shuffle=False, num_workers=cfg.num_thread, pin_memory=True)       # no shuffle at all.
         
         self.testset = testset

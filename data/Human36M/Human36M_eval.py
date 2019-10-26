@@ -4,7 +4,7 @@ import json
 import numpy as np
 from pycocotools.coco import COCO
 
-def calculate_score(output_path, annot_dir, subject_list):
+def calculate_score(output_path, annot_dir, subject_list):   # saved file is indexed already
     joint_num = 17 
     action_name = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases', 'Sitting', 'SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog', 'WalkTogether']
     
@@ -40,7 +40,7 @@ def calculate_score(output_path, annot_dir, subject_list):
         root_idx = 0
         pose_3d_gt = pose_3d_gt - pose_3d_gt[root_idx] # root-relative gt
         
-        p1_error[n] = np.power(pose_3d_aligned_out - pose_3d_gt,2) # PA MPJPE (protocol #1)
+        p1_error[n] = np.power(pose_3d_aligned_out - pose_3d_gt,2) # PA MPJPE (protocol #1) pow2  img*jt*3
         p2_error[n] = np.power(pose_3d_out - pose_3d_gt,2)  # MPJPE (protocol #2)
 
         img = db.loadImgs([img_id])[0]
@@ -50,7 +50,7 @@ def calculate_score(output_path, annot_dir, subject_list):
         p2_error_action[action_idx].append(p2_error[n].copy())
 
     # total error
-    p1_tot_err = np.mean(np.power(np.sum(p1_error,axis=2),0.5))
+    p1_tot_err = np.mean(np.power(np.sum(p1_error,axis=2),0.5))     # all samp * jt
     p2_tot_err = np.mean(np.power(np.sum(p2_error,axis=2),0.5))
     p1_eval_summary = 'Protocol #1 error (PA MPJPE) >> tot: %.2f\n' % (p1_tot_err)
     p2_eval_summary = 'Protocol #2 error (MPJPE) >> tot: %.2f\n' % (p2_tot_err)

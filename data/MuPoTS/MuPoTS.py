@@ -8,7 +8,7 @@ import json
 import cv2
 import random
 import math
-from utils.pose_utils import pixel2cam, get_bbox, warp_coord_to_original
+from utils.utils_pose import pixel2cam, get_bbox, warp_coord_to_original
 from utils.vis import vis_keypoints, vis_3d_skeleton
 
 class MuPoTS:
@@ -19,15 +19,16 @@ class MuPoTS:
         # self.test_annot_path = osp.join('..', 'data', 'MuPoTS', 'data', 'MuPoTS-3D.json') # there is data sub originally
         self.test_annot_path = osp.join(opts.ds_dir, 'MuPoTS', 'MuPoTS-3D.json')
         self.human_bbox_root_dir = osp.join(opts.ds_dir, 'MuPoTS', 'bbox_root', 'bbox_root_mupots_output.json')
-        self.joint_num = 21 # MuCo-3DHP
+        self.joint_num = 21 # MuCo-3DHP  seems to be annotation saved
         self.joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe') # MuCo-3DHP
         self.original_joint_num = 17 # MuPoTS
-        self.original_joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head') # MuPoTS
+        self.original_joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head') # MuPoTS, Thorax is like neck
 
         self.flip_pairs = ( (2, 5), (3, 6), (4, 7), (8, 11), (9, 12), (10, 13) )
         self.skeleton = ( (0, 16), (16, 1), (1, 15), (15, 14), (14, 8), (14, 11), (8, 9), (9, 10), (11, 12), (12, 13), (1, 2), (2, 3), (3, 4), (1, 5), (5, 6), (6, 7) )
         self.eval_joint = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
         self.joints_have_depth = True
+        self.if_SYN = False
         self.root_idx = self.joints_name.index('Pelvis')
         self.data = self.load_data()
 
@@ -130,13 +131,13 @@ class MuPoTS:
 
         return data
 
-    def evaluate(self, preds, result_dir):
-        
+    def evaluate(self, preds, result_dir):  # only save mat result here
+        # todo transfer preds to ori coordinate
         print('Evaluation start...')
         gts = self.data
         sample_num = len(preds)
         joint_num = self.original_joint_num
- 
+        # if opts.ref_joint_name != self.joint_name
         pred_2d_save = {}
         pred_3d_save = {}
         for n in range(sample_num):

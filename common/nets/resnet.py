@@ -45,9 +45,9 @@ class ResNetBackbone(nn.Module):
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers.append(block(self.inplanes, planes, stride, downsample))  # one with downsample
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
+        for i in range(1, blocks):      # following no sample
             layers.append(block(self.inplanes, planes))
 
         return nn.Sequential(*layers)
@@ -70,7 +70,7 @@ class ResNetBackbone(nn.Module):
         # drop orginal resnet fc layer, add 'None' in case of no fc layer, that will raise error
         org_resnet.pop('fc.weight', None)
         org_resnet.pop('fc.bias', None)
-        self.load_state_dict(org_resnet)
+        self.load_state_dict(org_resnet)    # get weights int
         print("Initialize resnet from model zoo")
 
 

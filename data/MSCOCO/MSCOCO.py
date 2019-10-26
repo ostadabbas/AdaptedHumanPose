@@ -8,7 +8,7 @@ import json
 import cv2
 import random
 import math
-from utils.pose_utils import pixel2cam, warp_coord_to_original
+from utils.utils_pose import pixel2cam, warp_coord_to_original
 from utils.vis import vis_keypoints, vis_3d_skeleton
 
 
@@ -21,7 +21,8 @@ class MSCOCO:
         self.train_annot_path = osp.join(opts.ds_dir, 'MSCOCO', 'annotations', 'person_keypoints_train2017.json')
         self.test_annot_path = osp.join(opts.ds_dir, 'MSCOCO', 'annotations', 'person_keypoints_val2017.json')
         self.human_3d_bbox_root_dir = osp.join(opts.ds_dir, 'MSCOCO', 'bbox_root', 'bbox_root_coco_output.json')
-        
+        self.if_train = 1 if 'y' == opts.if_ylB else 0
+
         if self.data_split == 'train':
             self.joint_num = 19 # original: 17, but manually added 'Thorax', 'Pelvis'
             self.joints_name = ('Nose', 'L_Eye', 'R_Eye', 'L_Ear', 'R_Ear', 'L_Shoulder', 'R_Shoulder', 'L_Elbow', 'R_Elbow', 'L_Wrist', 'R_Wrist', 'L_Hip', 'R_Hip', 'L_Knee', 'R_Knee', 'L_Ankle', 'R_Ankle', 'Thorax', 'Pelvis')
@@ -99,7 +100,8 @@ class MSCOCO:
 
                 joint_img = np.concatenate((joint_img, thorax, pelvis), axis=0)
 
-                joint_vis = (joint_img[:,2].copy().reshape(-1,1) > 0)
+                # joint_vis = (joint_img[:,2].copy().reshape(-1,1) > 0)
+                joint_vis = (joint_img[:,2].copy().reshape(-1,1) > 0) * self.if_train
                 joint_img[:,2] = 0
 
                 imgname = osp.join('train2017', db.imgs[ann['image_id']]['file_name'])
@@ -146,7 +148,7 @@ class MSCOCO:
         return data
 
     def evaluate(self, preds, result_dir):
-        
+        # only save pred result, no metric
         print('Evaluation start...')
         gts = self.data
         sample_num = len(preds)

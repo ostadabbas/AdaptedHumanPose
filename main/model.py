@@ -101,13 +101,13 @@ class ResPoseNet(nn.Module):
             ## coordinate loss
             loss_coord = torch.abs(coord - target_coord) * target_vis
             loss_coord = (loss_coord[:,:,0] + loss_coord[:,:,1] + loss_coord[:,:,2] * target_have_depth)/3.
-            
+
             return loss_coord
 
 def get_pose_net(cfg, is_train, joint_num):
     
-    backbone = ResNetBackbone(cfg.resnet_type)
-    head_net = HeadNet(joint_num)
+    backbone = ResNetBackbone(cfg.resnet_type)      # resnet 64 5*1/2 -> 8
+    head_net = HeadNet(joint_num)       # deconv 3 -> 64 hmap size
     if is_train:
         backbone.init_weights()
         head_net.init_weights()
