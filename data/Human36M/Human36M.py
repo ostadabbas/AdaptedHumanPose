@@ -9,8 +9,9 @@ import random
 import json
 from utils.vis import vis_keypoints, vis_3d_skeleton
 import utils.utils_pose as ut_p
-from .Human36M_eval import calculate_score
-
+import utils.utils_tool as ut_t
+from collections import OrderedDict
+# from Human36M_eval import calculate_score
 
 
 class Human36M:
@@ -22,11 +23,11 @@ class Human36M:
 	joint_num = 17
 	joint_num_ori = 17      # truth labeled jts,
 	joints_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Thorax', 'Neck', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist') # max std joints, first joint_num_ori will be true labeled
-	joints_eval_name = joints_name  # same thing
-	flip_pairs_name = {
+	evals_name = joints_name  # exact same thing
+	flip_pairs_name = (
 		('R_Hip', 'L_Hip'), ('R_Knee', 'L_Knee'), ('R_Ankle', 'L_Ankle'),
 		('R_Shoulder', 'L_Shoulder'), ('R_Elbow','L_Elbow'), ('R_Wrist', 'L_Wrist')
-	}
+	)
 	skels_name = (
 		('Pelvis', 'Torso'), ('Torso', 'Thorax'), ('Thorax', 'Neck'), ('Neck', 'Head'),
 		('Thorax', 'R_Shoulder'), ('R_Shoulder', 'R_Elbow'), ('R_Elbow', 'R_Wrist'),
@@ -46,6 +47,7 @@ class Human36M:
 	# get idx
 	flip_pairs = nameToIdx(flip_pairs_name, joints_name)
 	skeleton = nameToIdx(skels_name, joints_name)
+	eval_joint = nameToIdx(evals_name, joints_name)
 
 	def __init__(self, data_split, opts={}):
 		self.data_split = data_split
@@ -67,10 +69,7 @@ class Human36M:
 		# 	self.skeleton = ((0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2), 	(2, 3), (0, 4), (4, 5), (5, 6))
 		# 	self.eval_joint = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)  # except Thorax,
 		# 	self.boneLen2Dave_mm = 3800
-		self.skeleton = self.skeleton_cfg[opts.if_cmJoints]     # get class attribute
-		self.eval_joint = self.eval_joint_cfg[opts.if_cmJoints]
 		self.boneLen2Dave_mm = self.boneLen2Dave_mm_cfg[opts.if_cmJoints]
-
 		self.joints_have_depth = True
 		self.if_SYN = True
 		self.action_name = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases',
@@ -79,7 +78,7 @@ class Human36M:
 		self.root_idx = self.joints_name.index('Pelvis')
 		self.lshoulder_idx = self.joints_name.index('L_Shoulder')
 		self.rshoulder_idx = self.joints_name.index('R_Shoulder')
-		self.protocol = 2
+		self.protocol = opts.h36mProto      # controlled outside
 		self.data = self.load_data()  # load in data in preferred format
 		print("DS Human36M initialized")
 
@@ -161,12 +160,11 @@ class Human36M:
 			img_path = osp.join(self.img_dir, img['file_name'])
 			img_width, img_height = img['width'], img['height']
 			cam_param = img['cam_param']
-			R, t, f, c = np.array(cam_param['R']), np.array(cam_param['t']), np.array(cam_param['f']), np.array(
-				cam_param['c'])
+			R, t, f, c = np.array(cam_param['R']), np.array(cam_param['t']), np.array(cam_param['f']), np.array(cam_param['c'])
 
 			# project world coordinate to cam, image coordinate space
 			joint_cam = np.array(ann['keypoints_cam'])
-			joint_cam = self.add_thorax(joint_cam)
+			# joint_cam = self.add_thorax(joint_cam)
 			joint_img = np.zeros((self.joint_num, 3))
 			joint_img[:, 0], joint_img[:, 1], joint_img[:, 2] = cam2pixel(joint_cam, f, c)  # in mm
 			joint_img[:, 2] = joint_img[:, 2] - joint_cam[self.root_idx, 2]  # z  root relative
@@ -206,60 +204,41 @@ class Human36M:
 				'root_cam': root_cam,  # [X, Y, Z] in camera coordinate
 				'f': f,
 				'c': c})
-
 		return data
 
-	# def warp_to_ori(self, joint_out, bbox, center_cam, boneLen2d_mm=4200):  # instance method
-	# 	# joint_out: output from soft-argmax, x,y (pix:oriImg)  z[mm: cam]
-	# 	x = joint_out[:, 0] / self.opts.output_shape[1] * bbox[2] + bbox[0]
-	# 	y = joint_out[:, 1] / self.opts.output_shape[0] * bbox[3] + bbox[1]
-	# 	z_unit = (joint_out[:, 2] / self.opts.depth_dim * 2. - 1.)  # -0.5 ~ 0.5
-	# 	if 'y' == self.opts.if_normBone:
-	# 		boneLen2d_pix = get_boneLen(joint_out[:, 0:2], self.skeleton)
-	# 		z = z_unit * self.opts.inp_sz / boneLen2d_pix * boneLen2d_mm + center_cam
-	# 	else:
-	# 		z = z_unit *self.opts.bbox_3d_shape[0]/2. + center_cam
-	# 	# z = (joint_out[:, 2] / cfg.depth_dim * 2. - 1.) * (cfg.bbox_3d_shape[0] / 2.) + center_cam[2]
-	# 	return x, y, z
-
-	def evaluate(self, preds, result_dir, adj=np.array([0, 0, 0]), if_svVis=False, if_svEval=False):
+	def evaluate(self, preds, jt_adj=None, logger_test=None, if_svVis=False, if_svEval=False):
 		'''
-		rewrite this one.  len(preds) ~= len(joints_gt). if save evaluated image,
-		get all MPJPE, PCKh, AUC metric, return them out. If save needed, save them.
-		We can save them at final evaluation.
-		gt to ref_joints for eval,
-		sample_num = len(preds)
+		rewrite this one. preds follow opts.ref_joint,  gt transfer to ref_joints, taken with ref_evals_idx.
 		:param preds:
-		:param result_dir:
-		:param adj:
+		:param jt_adj:
 		:return:
 		'''
 
 		print('Evaluation start...')
 		gts = self.data
-		# assert len(gts) == len(preds) # must equal
-		# sample_num = len(gts)
-		# partial evalue
-		assert (len(preds) <= len(gts))
+		assert (len(preds) <= len(gts))     # can be smaller
 		# gts = gts[:len(preds)]  # take part of it
-		joint_num = self.joint_num
+		# joint_num = self.joint_num
+		joint_num = self.opts.ref_joint_num
 		sample_num = len(preds)  # use predict length
 		pred_save = []
 		diff_sum = np.zeros(3)      # keep x,y,z difference
 
-
-		# prepare container
+		# prepare metric array
 		action_name  = self.action_name
 		p1_error = np.zeros((len(preds), joint_num, 3))  # protocol #1 error (PA MPJPE)
 		p2_error = np.zeros((len(preds), joint_num, 3))  # protocol #2 error (MPJPE)
 		p1_error_action = [[] for _ in range(len(action_name))]  # PA MPJPE for each action
 		p2_error_action = [[] for _ in range(len(action_name))]  # MPJPE error for each action
-		# loop with preds, (can <= len(gt),  according to file name, add to categories
-		# log result
-		# log diff
 
-		for n in range(sample_num):
-			gt = gts[n]
+		# z metric only
+		z1_error = np.zeros((len(preds), joint_num, 3))  # protocol #1 error (PA MPJPE)
+		z2_error = np.zeros((len(preds), joint_num, 3))  # protocol #2 error (MPJPE)
+		z1_error_action = [[] for _ in range(len(action_name))]  # PA MPJPE for each action
+		z2_error_action = [[] for _ in range(len(action_name))]  # MPJPE error for each action
+
+		for i in range(sample_num):
+			gt = gts[i]
 			image_id = gt['img_id']
 			f = gt['f']
 			c = gt['c']
@@ -267,17 +246,22 @@ class Human36M:
 			gt_3d_root = gt['root_cam']
 			gt_3d_kpt = gt['joint_cam']
 			gt_vis = gt['joint_vis']
+			file_name = gt['file_name'] # to check categories
+
 			if self.joints_name != self.opts.ref_joints_name:
 				gt_3d_kpt = ut_p.transform_joint_to_other_db(gt_3d_kpt, self.joints_name, self.opts.ref_joints_name)
 				gt_vis = ut_p.transform_joint_to_other_db(gt_vis, self.joints_name, self.opts.ref_joints_name)
 
 			# restore coordinates to original space
-			pre_2d_kpt = preds[n].copy()  # grid:Hm
+			pre_2d_kpt = preds[i].copy()  # grid:Hm
 			# pre_2d_kpt[:,0], pre_2d_kpt[:,1], pre_2d_kpt[:,2] = warp_coord_to_original(pre_2d_kpt, bbox, gt_3d_root)
 			boneLen2d_mm = get_boneLen(gt_3d_kpt[:, :2], self.skeleton) # individual gt
-			# pre_2d_kpt[:, 0], pre_2d_kpt[:, 1], pre_2d_kpt[:, 2] = self.warp_to_ori(pre_2d_kpt, bbox, gt_3d_root,
-			pre_2d_kpt[:, 0], pre_2d_kpt[:, 1], pre_2d_kpt[:, 2] = warp_coord_to_ori(pre_2d_kpt, bbox, gt_3d_root, boneLen2d_mm=self.boneLen2Dave_mm, opts=self.opts, skel=self.skel_idx)    # todo give skel idx
-			# x,y [pix:oriImg] z[mm: cam]
+			if 'y' == self.opts.if_aveBoneRec:
+				boneRec = self.boneLen2Dave_mm
+			else:
+				boneRec = boneLen2d_mm
+			pre_2d_kpt[:, 0], pre_2d_kpt[:, 1], pre_2d_kpt[:, 2] = warp_coord_to_ori(pre_2d_kpt, bbox, gt_3d_root, boneLen2d_mm=boneRec, opts=self.opts, skel=self.opts.ref_skels_idx)  #  x,y pix:cam, z mm:cam
+
 			vis = False
 			if vis:
 				cvimg = cv2.imread(gt['img_path'], cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
@@ -291,41 +275,133 @@ class Human36M:
 
 			# back project to camera coordinate system
 			pred_3d_kpt = np.zeros((joint_num, 3))
-			pred_3d_kpt[:, 0], pred_3d_kpt[:, 1], pred_3d_kpt[:, 2] = pixel2cam(pre_2d_kpt, f,
-			                                                                    c)  # proj back x, y, z [mm: cam]
-
+			pred_3d_kpt[:, 0], pred_3d_kpt[:, 1], pred_3d_kpt[:, 2] = pixel2cam(pre_2d_kpt, f, c)  # proj back x, y, z [mm: cam]
+			# adjust the pelvis position,
+			if jt_adj:
+				pred_3d_kpt[self.ref_root_idx] += np.array(jt_adj)  # how much pred over gt add to get true pelvis position
 			# root joint alignment
-			pred_3d_kpt = pred_3d_kpt - pred_3d_kpt[self.root_idx]  # - adj* boneLen
-			gt_3d_kpt = gt_3d_kpt - gt_3d_kpt[self.root_idx]
-
+			pred_3d_kpt = pred_3d_kpt - pred_3d_kpt[self.opts.ref_root_idx]  # - adj* boneLen
+			gt_3d_kpt = gt_3d_kpt - gt_3d_kpt[self.opts.ref_root_idx]
+			# get all joints difference from gt except root
+			diff_pred2gt = pred_3d_kpt - gt_3d_kpt
+			diff_av = np.delete(diff_pred2gt, self.opts.ref_root_idx, axis=0).mean(axis=0)  # not root average           # all joints diff
+			diff_sum += diff_av     # all jt diff 3
 			# rigid alignment for PA MPJPE (protocol #1)
 			pred_3d_kpt_align = rigid_align(pred_3d_kpt, gt_3d_kpt)
 
-			# exclude thorax
-			pred_3d_kpt = np.take(pred_3d_kpt, self.eval_joint_idxs, axis=0)
-			pred_3d_kpt_align = np.take(pred_3d_kpt_align, self.eval_joint_idxs, axis=0)  # take elements out to eval
+			if if_svVis and 0 == i % (self.opts.svVis_step*self.opts.batch_size):   # rooted 3d
+				ut_t.save_3d_tg3d(pred_3d_kpt_align, self.opts.vis_test_dir, self.opts.ref_skels_idx, idx=i, suffix='root')
 
-			# get the average diff
-			# diff_cur = (pred_3d_kpt_align - gt_3d_kpt) / gt.boneLen  # proportion to bonLen
-			# if 0==n:
-			#     diff_arr = diff_cur
-			# else:
-			#     diff_arr = np.vstack((diff_arr, diff_cur))
+			# prediction list with full joints
+			pred_save.append({'img_id': image_id,       # maybe for json , use list
+			                  'file_name': file_name,
+			                  'joint_cam': pred_3d_kpt.tolist(),
+			                  'joint_cam_aligned': pred_3d_kpt_align.tolist(),
+			                  'joint_cam_gt': gt_3d_kpt.tolist(),
+			                  'bbox': bbox.tolist(),
+			                  'root_cam': gt_3d_root.tolist(), })
 
-			# prediction list
-			pred_save.append({'image_id': image_id, 'joint_cam': pred_3d_kpt.tolist(),
-			                  'joint_cam_aligned': pred_3d_kpt_align.tolist(), 'bbox': bbox.tolist(),'root_cam': gt_3d_root.tolist(), 'eval_joint_idxs': self.eval_joint_idx},
-			                 )  # joint_cams are root-relative todo change idx
+			pred_3d_kpt = np.take(pred_3d_kpt, self.opts.ref_evals_idx, axis=0)
+			pred_3d_kpt_align = np.take(pred_3d_kpt_align, self.opts.ref_evals_idx, axis=0)  # take elements out to eval
+			gt_3d_kpt = np.take(gt_3d_kpt, self.opts.ref_root_idx)
 
-			if if_svVis:
-				# save 2d image and 3d skeleton, combined one if possible like in paper? if hard, simply imply their matlab toolkit for visiual
-				print('to do '); pass # todo---
+			# result and scores
+			p1_error[i] = np.power(pred_3d_kpt_align - gt_3d_kpt, 2)  # PA MPJPE (protocol #1) pow2  img*jt*3
+			p2_error[i] = np.power(pred_3d_kpt - gt_3d_kpt, 2)  # MPJPE (protocol #2) n_smpl* n_jt * 3 square
+			z1_error[i] = np.abs(pred_3d_kpt_align[:,2] - gt_3d_kpt[:, 2])  # n_jt : abs
+			z2_error[i] = np.abs(pred_3d_kpt[:,2] - gt_3d_kpt[:, 2])  # n_jt
 
-		output_path = osp.join(result_dir, osp.join(self.opts.result_dir, 'bbox_root_pose_human36m_output.json'))   # for plot purpose?
-		with open(output_path, 'w') as f:
-			json.dump(pred_save, f)
-		print("Test result is saved at " + output_path)
-		# calculate_score(output_path, self.annot_path, self.get_subject())
+			action_idx = int(file_name[file_name.find('act') + 4:file_name.find('act') + 6]) - 2
+			p1_error_action[action_idx].append(p1_error[i].copy())
+			p2_error_action[action_idx].append(p2_error[i].copy())
+			z1_error_action[action_idx].append(z1_error[i].copy())
+			z2_error_action[action_idx].append(z2_error[i].copy())
+
+		#reduce to metrics  into dict
+		diff_av = diff_sum / sample_num
+		p1_err_av = np.mean(np.power(np.sum(p1_error, axis=2), 0.5))  # all samp * jt
+		p2_err_av = np.mean(np.power(np.sum(p2_error, axis=2), 0.5))
+		z1_err_av = np.mean(z1_error)
+		z2_err_av = np.mean(z2_error)
+
+		p1_err_action_av = []
+		p2_err_action_av = []
+		z1_err_action_av = []
+		z2_err_action_av = []
+
+		for i in len(p1_error_action):  # n_act * n_subj * n_jt * 3
+			err = np.array(p1_error_action[i])
+			err = np.mean(np.power(np.sum(err, axis=2), 0.5))
+			p1_err_action_av.append(err)
+			err = np.array(p2_error_action[i])
+			err = np.mean(np.power(np.sum(err, axis=2), 0.5))
+			p2_err_action_av.append(err)
+
+			err = np.array(z1_error_action[i])
+			err = np.mean(err)
+			z1_err_action_av.append(err)
+			err = np.array(z2_error_action[i])
+			err = np.mean(err)
+			z2_err_action_av.append(err)
+
+		# p1 aligned (PA MPJPE), p2 not aligned (MPJPE) , action is list
+		err_dict = {
+			'p1_err': p1_err_av,
+			'p2_err': p2_err_av,
+			'z1_err': z1_err_av,
+			'z2_err': z2_err_av,
+			'p1_err_act': p1_err_action_av,
+			'p2_err_act': p2_err_action_av,
+			'z1_err_act': z1_err_action_av,
+			'z2_err_act': z2_err_action_av,
+			'action_name': action_name,
+			'ref_evals_name': self.opts.ref_evals_name,      # what joints evaluated
+		}
+
+		# prepare saving
+		rst_dict = {'pred_rst': pred_save, 'ref_joints_name': self.opts.ref_joints_name, 'jt_adj': jt_adj}  # full joints with only adj
+		if if_svEval:
+			rst_pth = osp.join(self.opts.rst_dir,'_'.join('Human36M', self.data_split, 'proto'+str(self.protocol), 'rst.json'))  # Human36M_testInLoop_proto2_rst.json
+			with open(rst_pth, 'w') as f:
+				# json.dump(pred_save, f)
+				json.dump(rst_dict, f)      # result with also meta
+			print("Test result is saved at " + rst_pth)
+			# save eval result
+			eval_pth = osp.join(self.opts.rst_dir, '_'.join('Human36M', self.data_split, 'proto'+str(self.protocol), str(len(self.opts.ref_evals_name)), 'eval.npy')) # pickled npy
+			# Human36M_testInLoop_proto2_17_eval.json
+			np.save(eval_pth, err_dict) # pickled dictionary
+
+		# show result
+		if logger_test:
+			prt_func = logger_test.info
+		else:
+			prt_func = print
+		# total
+		prt_func('under protocol {:d} with {:d} eval joints'.format(self.protocol, len(self.opts.ref_evals_name)))
+		prt_func('MPJPE PA {:.1f}'.format(p1_err_av))
+		prt_func('MPJPE {:.1f}'.format(p2_err_av))
+		prt_func('z PA {:.1f}'.format(z1_err_av))
+		prt_func('z {:.1f}'.format(z2_err_av))
+		# action based
+		row_format = "{:>8}" + "{:>15}" * len(action_name)
+		prt_func(row_format.format("", *action_name))
+		row_format = "{:>8}" + "{:>15.1f}" * len(action_name)
+		nm_li = ['MPJPE PA', 'MPJPE', 'z PA', 'z']
+		data_li = [p1_err_action_av, p2_err_action_av, z1_err_action_av, z2_err_action_av]
+		for nm, row in zip(nm_li, data_li):
+			prt_func(row_format.format(nm, *row))
+
+		return err_dict
+
+
+
+
+
+
+
+
+
+		# calculate_score(output_path, self.annot_path, self.get_subject())       # comment it later
 		# test logger, print result here,  log diff value
 
 		# init 0s loop through the gt , with eval_idxs to take (axis 0) for gt,

@@ -23,7 +23,11 @@ def main():
 	print('>>> Using GPU: {}'.format(gpu_ids_str))
 	cudnn.fastest = True
 	cudnn.benchmark = True
-	# set env gpu
+
+	# logger
+	logger_train = Colorlogger(opts.log_dir, 'train_logs.txt')
+	logger_test = Colorlogger(opts.log_dir, 'test_logs.txt')
+	logger_debug = Colorlogger(opts.log_dir, 'debug_logs.txt')
 
 	# make dtLoader for train and gen a test set instance
 	adpDs_train_li, loader_train_li, iter_train_li = genDsLoader(opts, mode=0)  # train loader
@@ -40,6 +44,7 @@ def main():
 	if 0 == opts.start_epoch and 'y' == opts.if_scraG:
 		model.load_bb_pretrain()  # init backbone
 	elif opts.start_epoch > 0:      # load the epoch model
+		logger_train.info('loading model from epoch {}'.format(opts.start_epoch-1))
 		model.load_networks(opts.start_epoch-1)
 
 	# trainer = Trainer()
@@ -51,8 +56,6 @@ def main():
 	gpu_timer = Timer()
 	read_timer = Timer()
 
-	logger_train = Colorlogger(opts.log_dir, 'train_logs.txt')
-	logger_test = Colorlogger(opts.log_dir, 'test_logs.txt')
 	visualizer = Visualizer(opts)   # only plot losses here, there is logger for record and print, only for current session, restart will not be saved.
 	total_iters = 0
 
@@ -72,9 +75,6 @@ def main():
 		# set timers
 		tot_timer.tic()
 		read_timer.tic()
-
-		if opts.trainIter > 0:
-			iter_per_epoch = min(opts.trainIter, iter_per_epoch)
 
 		for itr in range(itr_per_epoch):  #
 			# init list, iter bach concate from all set (add if_SYN)
@@ -131,24 +131,21 @@ def main():
 			read_timer.toc()
 			gpu_timer.tic()
 
+			if opts.ifb_debug:
+				logger_debug.info('input patch size', input_img.shape)
+				logger_debug.info('joint_hm 0')
+				logger_debug.info(joint_img[0])     # first in batch
+				logger_debug.info('vis', joint_vis)
+				logger_debug.info('if_depth_v', joints_have_depth)
+				logger_debug.info('if_SYN_v', if_SYNs)
+
 			# train process
-			# model.set_input, optimizer parameter
 			model.set_input(input, target)
 			model.optimize_parameters()
 
 			gpu_timer.toc()
 			# get all losses from model L_G, L_D, L_total, from model
 			losses = model.get_current_losses()     # T, G_GAN, D
-
-			# form log infor, log it
-			# screen = [
-			# 	'Epoch %d/%d itr %d/%d:' % (epoch, cfg.end_epoch, itr, trainer.itr_per_epoch),
-			# 	'lr: %g' % (trainer.get_lr()),
-			# 	'speed: %.2f(%.2fs r%.2f)s/itr' % (
-			# 		trainer.tot_timer.average_time, trainer.gpu_timer.average_time, trainer.read_timer.average_time),
-			# 	'%.2fh/epoch' % (trainer.tot_timer.average_time / 3600. * trainer.itr_per_epoch),
-			# 	'%s: %.4f' % ('loss_coord', loss_coord.detach()),
-			# ]
 			screen = [
 				'Epoch %d/%d itr %d/%d:' % (epoch, end_epoch, itr, itr_per_epoch),
 				'speed: %.2f(%.2fs r%.2f)s/itr' % (
@@ -159,7 +156,7 @@ def main():
 			logger_train.info(' '.join(screen))
 
 			if opts.display_id > 0:
-				visualizer.plot_current_losses(epoch, )
+				visualizer.plot_current_losses(epoch, float(itr)/itr_per_epoch, losses)
 			# check all timer infor
 			tot_timer.toc()
 			tot_timer.tic()
@@ -171,18 +168,21 @@ def main():
 		# testInLoop, test(ds_testInLoop, model): form loader, then evaluate through, no save
 		# return all metric values, MPJPE, pckh, auc
 		# for logger infor,  display, and logger_test save infor
-		testLoop(model, ds_testInLoop, logger_test=logger_test) # default not save result and
+		err_dict = testLoop(model, ds_testInLoop, logger_test=logger_test) # default not save result and
+		if err_dict.type == dict:
+			eval_dict = {'MPJPE PA': err_dict['p1_err'], 'MPJPE': err_dict['p2_err']}
+			visualizer.plot_metrics(epoch, eval_dict)
 
 		# save every epoch, save step
 		if 0 == epoch % opts.save_step:
-			model.save_networks(epoch, float(iter)/iter_per_epoch, losses)  # all model optim dict saved
+			model.save_networks(epoch)  # all model optim dict saved
 
 		# model to train, update learning rate
 		model.train()
 		model.update_learning_rate()
 
 	# after all training,  run test.test(ds_test, model) : build loader and loop through
-	test.testLoop(model, ds_test, logger_test=logger_test, if_svRst=True, if_svVis=True)
+	test.testLoop(model, ds_test, logger_test=logger_test, if_svEval=True, if_svVis=True)
 	# save final model  wtih epoch nuber
 
 

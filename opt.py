@@ -26,10 +26,13 @@ def parseArgs():
 	parser.add_argument('--output_dir', default='output', help='default output dirs') # model, rst, vis will be under this dir.
 	# parser.add_argument('--cocoapi_dir', default='/scratch/liu.shu/codesPool/cocoapi/PythonAPI', help='coco api dir')
 	parser.add_argument('--cocoapi_dir', default=r'G:\My Drive\research\Sarah Ostadabbas\codePool\cocoapi\PythonAPI', help='coco api dir')
+	parser.add_argument('--ifb_debug', action='store_true')
 	parser.add_argument('--suffix_ptn_train', default='{net_BB}_{if_scraG}scraG_{lmd_D}D{n_layers_D}_{if_ylB}yl_{rt_SYN}rtSYN_regZ{epoch_regZ}_{if_fixG}fG_{if_normBone}nmBone', help='the suffix pattern to form name') ## --
 	parser.add_argument('--suffix_exp_train', default='exp', help='the manually given suffix for specific test')
 	parser.add_argument('--suffix_ptn_test', default='{testset}_{if_flipTest}flip_{if_gtRtTest}GtRt_{if_adj}Adj.json', help='the suffix pattern to form name')
 	parser.add_argument('--suffix_exp_test', default='exp', help='mannualy added suffix for test result')
+	# -- ds specific
+	parser.add_argument('--h36mProto', default=2)
 
 	# -- train setting
 	parser.add_argument('--trainset', nargs='+', default=['ScanAva'], help='give the main ds here the iter number will follow this one')
@@ -80,6 +83,7 @@ def parseArgs():
 	parser.add_argument('--if_flipTest', default='n')
 	parser.add_argument('--if_gtRtTest', default='y', help='if use gt distance for root')
 	parser.add_argument('--if_adj', default='y', help='if adjust the root location to adapt different dataset')
+	parser.add_argument('--if_aveBoneRec', default='y', help='if use average boneLento recover the estimation')
 
 	# -- network settings
 	parser.add_argument('--n_layers_D', type=int, default=2, help='descriminator layer number, for 8 bb, 2 layers are good')
@@ -94,13 +98,13 @@ def parseArgs():
 	opts.bbox_3d_shape = (2000, 2000, 2000)  # depth, height, width
 	opts.pixel_mean = (0.485, 0.456, 0.406)  # perhaps for RGB normalization  after divide by 255
 	opts.pixel_std = (0.229, 0.224, 0.225)
-	# if  cmJoints version then index the eval joints, for train only
-	# opts.ref_joints =[Human36M.joints_name[i] for i in Human36M.eval_joint_cfg[opts.if_cmJoints]]
-	# opts.joint_num = len(opts.ref_joints)    # if 14
+
 	opts.ref_joints_name = Human36M.joints_name     # stick to Human36M, we can not evaluate but keep all
 	opts.ref_flip_pairs_name = Human36M.flip_pairs_name
+	# post result
 	opts.ref_joints_num = len(opts.ref_joints_name)  # how image output
 	opts.ref_flip_pairs =ut_p.nameToIdx(opts.ref_flip_pairs_name, opts.ref_joints_name)
+	opts.ref_root_idx = opts.ref_joints_name.index('Pelvis')
 	# option1 for h36m joints
 	if 'y' != opts.if_cmJoints:
 		opts.ref_skels_name = Human36M.skels_name       # draw from rediction skels
@@ -134,6 +138,7 @@ def parseArgs():
 	opts.result_dir = osp.join(opts.exp_dir, 'result')
 	opts.num_gpus = len(opts.gpu_ids)
 	opts.web_dir = osp.join(opts.exp_dir, 'web')
+	opts.vis_test_dir = osp.join(opts.vis_dir, opts.testset)
 
 	yn_dict = {'y': True, 'n': False}
 	opts.flip_test = yn_dict[opts.if_flipTest]

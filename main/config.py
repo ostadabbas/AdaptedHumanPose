@@ -17,9 +17,9 @@ class Config:
 
     # testing set
     # Human36M, MuPoTS, MSCOCO
-    # testset = 'Human36M'
+    testset = 'Human36M'
     # testset = 'MSCOCO'
-    testset = 'MuPoTS'
+    # testset = 'MuPoTS'
     if_normBone = 'n'
     ## directory
     cur_dir = osp.dirname(os.path.abspath(__file__))
@@ -54,6 +54,7 @@ class Config:
     test_batch_size = 16
     flip_test = True
     use_gt_info = False
+    if_cmJoints = 'n'
 
     ## others
     num_thread = 20

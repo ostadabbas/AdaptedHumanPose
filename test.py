@@ -15,12 +15,14 @@ from data import dataset
 import torch.backends.cudnn as cudnn
 from opt import opts, print_options
 import os
+import os.path as osp
 from utils.logger import Colorlogger
 from models.modelTG import TaskGenNet
 from data.dataset import genLoaderFromDs
+import utils.utils_tool as ut_t
+import math
 
-
-def testLoop(model, ds_test, logger_test='test_tmp.txt', if_svRst=False, if_svVis=False):
+def testLoop(model, ds_test, logger_test='test_tmp.txt', if_svEval=False, if_svVis=False):
     '''
     generate loader from ds, then test the model, logger record, and image save directly here.
     :param model: the trained model
@@ -31,10 +33,17 @@ def testLoop(model, ds_test, logger_test='test_tmp.txt', if_svRst=False, if_svVi
     # ds, loader, iterator = dataset.genDsLoader(opts, mode=mode)
 
 
-    ds_adp, loader, iterator = genLoaderFromDs(ds_test, opts)
+    ds_adp, loader, iter_test = genLoaderFromDs(ds_test, opts)   # will be in batch format
     preds = []
 
-    for i, (input, target) in enumerate(loader):
+    itr_per_epoch = math.ceil(
+        ds_adp.__len__() / opts.num_gpus / opts.batch_size)  # single ds test on batch share
+    if opts.testIter > 0:
+        itr_per_epoch = min(itr_per_epoch, opts.testIter)
+
+    # for i, (input, target) in enumerate(loader):
+    for i in range(itr_per_epoch):
+        input, target = next(iter_test)
         model.set_input(input, target)
         model.forward()
         coord_out = model.coord
@@ -52,14 +61,25 @@ def testLoop(model, ds_test, logger_test='test_tmp.txt', if_svRst=False, if_svVi
             coord_out = (coord_out + flipped_coord_out) / 2.
         preds.append(coord_out) # add result
 
-        if if_svVis and 0 == i % opts.svVis_step:        # save G_fts and HM, img patch, plot skeleton with coord is good enough.
-            print('sv img not implemented yet'); pass # todo ---
-            # save G_fts
-            # save HM fron_view and side_view hm.
+        if if_svVis and 0 == i % opts.svVis_step:
+            # save visuals  only 1st one in batch
+            sv_dir = opts.vis_test_dir      # exp/vis/Human36M
+            img_patch_vis = ut_t.ts2cv2(input['img_patch'][0])
+            idx_test = i* opts.batch_size
+            skel_idx = opts.ref_skels_idx
+            # get pred2d_patch
+            pred2d_patch = np.zeros((3, opts.joint_num))        # 3xn_jt format
+            pred2d_patch[:2, :] = coord_out[0, :, :2].cpu().numpy().transpose(1, 0) / opts.output_shape[0] * opts.input_shape[0]  # x * n_jt ?
+            pred2d_patch[2, :] = 1
+            ut_t.save_2d_tg3d(img_patch_vis, pred2d_patch, skel_idx, sv_dir, idx=idx_test)  # make sub dir if needed, recover to test set index by indexing.
+            ut_t.save_hm_tg3d(HM.cpu().numpy(), sv_dir, idx=idx_test)        # only save the first HM here,
+            ut_t.save_Gfts_tg3d(G_fts.cpu().numpy(), sv_dir, idx=idx_test)   # only first 25 hm, also histogram of G_fts
+            # HM front and side view
+            ut_t.save_3d_tg3d(coord_out, sv_dir, skel_idx, idx=idx_test, suffix='hm')       # if need mm plot, can be done in eval part with ds infor, here only for HM version
 
-
-    rst = ds_test.evaluate(preds, result_dir=opts.result_dir, adj=opts.adj, if_svRst=if_svRst, if_svVis=if_svVis)    # rst in dict with MPJPE, PCKh, and AUC
-    return rst
+    preds = np.concatenate(preds, axis=0)  # x,y,z :HM preds = np.concatenate(preds, axis=0)   # x,y,z :HM  into vertical long one
+    err_dict = ds_test.evaluate(preds, jt_adj=opts.adj, if_svVis=if_svVis, if_svEval=if_svEval)    # shoulddn't return, as different set different metric, some only save
+    return err_dict
 
 
 
@@ -76,16 +96,15 @@ def main():
     # test Logger here
     logger_test = Colorlogger(opts.log_dir, 'test_logs.txt')
     # create model, load in the model we need with epoch number specified in opts
+
+    ds_test = eval(opts.testset)("test", opts=opts)  # keep a test set
     model = TaskGenNet(opts)  # with initialization already, already GPU-par
     if 0 == opts.start_epoch and 'y' == opts.if_scraG:
         model.load_bb_pretrain()  # init backbone
     elif opts.start_epoch > 0:  # load the epoch model
         model.load_networks(opts.start_epoch - 1)
-    rst = testLoop(model, mode=1, if_svRst=True, if_svVis=True)   # formal test with all
+    err_dict = testLoop(model, ds_test, logger_test=logger_test, if_svEval=True, if_svVis=True)
 
-    # form the final test result
-	# print
-	# log it
 
 
 if __name__ == "__main__":

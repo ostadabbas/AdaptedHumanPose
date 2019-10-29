@@ -139,6 +139,7 @@ class Visualizer():
     """This class includes several functions that can display/save images and print/save logging information.
 
     It uses a Python library 'visdom' for display, and a Python library 'dominate' (wrapped in 'HTML') for creating HTML files with images.
+    display_id -> loss; +1 -> images +2-> text +3 metrics
     """
 
     def __init__(self, opts):
@@ -291,6 +292,30 @@ class Visualizer():
                     'xlabel': 'epoch',
                     'ylabel': 'loss'},
                 win=self.display_id)
+        except VisdomExceptionBase:
+            self.create_visdom_connections()
+    def plot_metrics(self, epoch, evals):  # at the end of each epoch plot metrics
+        """display the current metrics. use display_id + 3
+
+        Parameters:
+            epoch (int)           -- current epoch
+            counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
+            evals (OrderedDict)  -- training losses stored in the format of (name, float) pairs
+        """
+        if not hasattr(self, 'evals'):
+            self.evals = {'X': [], 'Y': [], 'legend': list(evals.keys())}
+        self.evals['X'].append(epoch)
+        self.evals['Y'].append([evals[k] for k in self.plot_data['legend']])
+        try:
+            self.vis.line(
+                X=np.stack([np.array(self.evals['X'])] * len(self.evals['legend']), 1),
+                Y=np.array(self.evals['Y']),
+                opts={
+                    'title': self.name + ' loss over time',
+                    'legend': self.plot_data['legend'],
+                    'xlabel': 'epoch',
+                    'ylabel': 'evals'},
+                win=self.display_id+3)
         except VisdomExceptionBase:
             self.create_visdom_connections()
 

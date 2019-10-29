@@ -65,10 +65,10 @@ def main():
                 tmpimg = input_img[0].cpu().numpy()
                 tmpimg = tmpimg * np.array(cfg.pixel_std).reshape(3,1,1) + np.array(cfg.pixel_mean).reshape(3,1,1)
                 tmpimg = tmpimg.astype(np.uint8)
-                tmpimg = tmpimg[::-1, :, :]
-                tmpimg = np.transpose(tmpimg,(1,2,0)).copy()
+                tmpimg = tmpimg[::-1, :, :]     # BGR
+                tmpimg = np.transpose(tmpimg,(1,2,0)).copy()    # x, y , c
                 tmpkps = np.zeros((3,tester.joint_num))
-                tmpkps[:2,:] = coord_out[0,:,:2].cpu().numpy().transpose(1,0) / cfg.output_shape[0] * cfg.input_shape[0]
+                tmpkps[:2,:] = coord_out[0,:,:2].cpu().numpy().transpose(1,0) / cfg.output_shape[0] * cfg.input_shape[0]        # x * n_jt ?
                 tmpkps[2,:] = 1
                 tmpimg = vis_keypoints(tmpimg, tmpkps, tester.skeleton)
                 cv2.imwrite(filename + '_output.jpg', tmpimg)
