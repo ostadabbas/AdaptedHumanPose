@@ -16,9 +16,12 @@ import matplotlib
 matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
 from utils.logger import Colorlogger
-
+from data.ScanAva.ScanAva import ScanAva
+from data.dataset import AdpDataset_3d
+import torchvision.transforms as transforms
 
 # opt.print_options(opts)
+print(opts.ds_dir)
 # print(opts.gpu_ids)
 
 # get ds
@@ -41,10 +44,26 @@ from utils.logger import Colorlogger
 # plt.show()        # -- ok
 
 ## test logger
-arr1 = np.array([[2,8,6],
-                 [9,8, 1]])
-logger_test = Colorlogger(opts.log_dir, 'test_logs.txt')
-logger_test.info(arr1)
+# arr1 = np.array([[2,8,6],
+#                  [9,8, 1]])
+# logger_test = Colorlogger(opts.log_dir, 'test_logs.txt')
+# logger_test.info(arr1)
+
+## test ScanAva
+trans = transforms.Compose([
+	transforms.ToTensor(),
+	transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
+ds_scanAva = ScanAva('train', opts)
+ds_adp3d = AdpDataset_3d(ds_scanAva, opts.ref_joints_name, True, trans, opts=opts)
+img, tar = ds_adp3d.__getitem__(10)
+print(img)
+print(tar)
+# print('dataLen')      # all these seem all right.
+# print(len(ds_scanAva.data))
+# print(ds_scanAva.data_split)
+# print('name used')
+# print(ds_scanAva.nms_use)
+# print(ds_scanAva.data[0])
 
 
 

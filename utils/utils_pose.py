@@ -72,7 +72,7 @@ def get_bbox(joint_img):
 
 def warp_coord_to_ori(joint_out, bbox, center_cam, boneLen2d_mm=3800, opts={}, skel=None):
 	'''
-	From output joint: HM, bb, camera center, recover to cam coordinate mm:cam
+	From output joint: HM, bb, camera center, recover to cam coordinate x,y pix:ori z mm: cam
 	:param joint_out:
 	:param bbox:
 	:param center_cam:

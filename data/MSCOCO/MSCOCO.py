@@ -2,19 +2,21 @@ import os
 import os.path as osp
 import numpy as np
 from pycocotools.coco import COCO
-from config import cfg
 import scipy.io as sio
 import json
 import cv2
 import random
 import math
-from utils.utils_pose import pixel2cam, warp_coord_to_original
+from utils.utils_pose import pixel2cam, warp_coord_to_ori
 from utils.vis import vis_keypoints, vis_3d_skeleton
-
+from pathlib import Path
 
 class MSCOCO:
+    # we don't process this one specifically, data std fully covered already. Then test is split config is not needed
+    if_SYN = False
     def __init__(self, data_split, opts={}):
         self.data_split = data_split
+        self.opts = opts
         self.ds_dir = opts.ds_dir
         # self.img_dir = osp.join('..', 'data', 'MSCOCO', 'images')
         self.img_dir = osp.join(opts.ds_dir, 'MSCOCO', 'images')
@@ -24,7 +26,7 @@ class MSCOCO:
         self.if_train = 1 if 'y' == opts.if_ylB else 0
 
         if self.data_split == 'train':
-            self.joint_num = 19 # original: 17, but manually added 'Thorax', 'Pelvis'
+            self.joint_num = 19 # original: 17, but manually added 'Thorax', 'Pelvis' to form includsive support to h36m
             self.joints_name = ('Nose', 'L_Eye', 'R_Eye', 'L_Ear', 'R_Ear', 'L_Shoulder', 'R_Shoulder', 'L_Elbow', 'R_Elbow', 'L_Wrist', 'R_Wrist', 'L_Hip', 'R_Hip', 'L_Knee', 'R_Knee', 'L_Ankle', 'R_Ankle', 'Thorax', 'Pelvis')
             self.flip_pairs = ( (1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16) )
             self.skeleton = ( (1, 2), (0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9), (12, 14), (14, 16), (11, 13), (13, 15), (5, 6), (11, 12) )
@@ -55,7 +57,6 @@ class MSCOCO:
             data = []
             for aid in db.anns.keys():
                 ann = db.anns[aid]
-
                 if (ann['image_id'] not in db.imgs) or ann['iscrowd'] or (ann['num_keypoints'] == 0):
                     continue
 
@@ -77,7 +78,7 @@ class MSCOCO:
                 h = bbox[3]
                 c_x = bbox[0] + w/2.
                 c_y = bbox[1] + h/2.
-                aspect_ratio = cfg.input_shape[1]/cfg.input_shape[0]
+                aspect_ratio = self.opts.input_shape[1]/self.opts.input_shape[0]
                 if w > aspect_ratio * h:
                     h = w / aspect_ratio
                 elif w < aspect_ratio * h:
@@ -105,7 +106,8 @@ class MSCOCO:
                 joint_img[:,2] = 0
 
                 imgname = osp.join('train2017', db.imgs[ann['image_id']]['file_name'])
-                img_path = osp.join(self.img_dir, imgname)
+                # img_path = osp.join(self.img_dir, imgname)
+                img_path = Path(self.img_dir) / imgname
                 data.append({
                     'img_path': img_path,
                     'bbox': bbox,
@@ -124,6 +126,7 @@ class MSCOCO:
                 image_id = annot[i]['image_id']
                 img = db.loadImgs(image_id)[0]
                 img_path = osp.join(self.img_dir, 'val2017', img['file_name'])
+                img_path = str(Path(img_path))  #  win/linux path compatibility
                 fx, fy, cx, cy = 1500, 1500, img['width']/2, img['height']/2
                 f = np.array([fx, fy]); c = np.array([cx, cy]);
                 root_cam = np.array(annot[i]['root_cam']).reshape(3)
@@ -163,15 +166,17 @@ class MSCOCO:
             c = gt['c']
             bbox = gt['bbox']
             gt_3d_root = gt['root_cam']
-            img_name = gt['img_path'].split('/')
+            # img_name = gt['img_path'].split('/')
+            img_name = Path(gt['img_path']).name
             img_name = 'coco_' + img_name[-1].split('.')[0] # e.g., coco_00000000
             
             # restore coordinates to original space
             pred_2d_kpt = preds[n].copy()
             # only consider eval_joint
             pred_2d_kpt = np.take(pred_2d_kpt, self.eval_joint, axis=0)
-            pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_original(pred_2d_kpt, bbox, gt_3d_root)
-            
+            # pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_original(pred_2d_kpt, bbox, gt_3d_root)
+            pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_ori(pred_2d_kpt, bbox, gt_3d_root, opts=self.opts, skel=self.ref_skels_idx) # use use std
+
             # 2d kpt save
             if img_name in pred_2d_save:
                 pred_2d_save[img_name].append(pred_2d_kpt[:,:2])

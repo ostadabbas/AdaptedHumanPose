@@ -4,14 +4,14 @@ import numpy as np
 from pycocotools.coco import COCO
 import utils.utils_pose as ut_p
 # from config import cfg
+from pathlib import Path
 
 
 class MPII:
-	# todo  add the missing parts to std
 	joint_num = 17
 	joint_num_ori = 16  # no Torso joint
 	joints_name = (
-		'R_Ankle', 'R_Knee', 'R_Hip', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Thorax', 'Neck', 'Head', 'R_Wrist','R_Elbow', 'R_Shoulder', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'Torso')  # max std joints
+		'R_Ankle', 'R_Knee', 'R_Hip', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Thorax', 'Neck', 'Head', 'R_Wrist','R_Elbow', 'R_Shoulder', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'Torso')  # full std joints
 	joints_eval_name = joints_name[:joint_num_ori]  # no last name
 	flip_pairs_name = (
 		('R_Hip', 'L_Hip'), ('R_Knee', 'L_Knee'), ('R_Ankle', 'L_Ankle'),
@@ -26,6 +26,7 @@ class MPII:
 	)  # for original preferred skel
 	flip_pairs = ut_p.nameToIdx(flip_pairs_name, joints_name)
 	skeleton = ut_p.nameToIdx(skels_name, joints_name)
+	if_SYN = False
 	def __init__(self, data_split, opts={}):
 		self.data_split = data_split
 		self.opts = opts
@@ -33,10 +34,6 @@ class MPII:
 		self.ds_dir = opts.ds_dir
 		self.img_dir = osp.join(opts.ds_dir, 'MPII')  # list name with images
 		self.train_annot_path = osp.join(opts.ds_dir, 'MPII', 'annotations', 'train.json')
-		# self.flip_pairs = ((0, 5), (1, 4), (2, 3), (10, 15), (11, 14), (12, 13))
-		# self.skeleton = (
-		# (0, 1), (1, 2), (2, 6), (7, 12), (12, 11), (11, 10), (5, 4), (4, 3), (3, 6), (7, 13), (13, 14), (14, 15),
-		# (6, 7), (7, 8), (8, 9))
 		self.joints_have_depth = False
 		self.data = self.load_data()
 		self.if_train = 1 if 'y' == opts.if_ylB else 0  # according to task request to supervise or not the joints.
@@ -105,7 +102,8 @@ class MPII:
 			joint_img[:, 2] = 0
 
 			imgname = db.imgs[ann['image_id']]['file_name']
-			img_path = osp.join(self.img_dir, imgname)
+			# img_path = osp.join(self.img_dir, imgname)
+			img_path = Path(self.img_dir) / imgname
 			data.append({
 				'img_path': img_path,
 				'bbox': bbox,

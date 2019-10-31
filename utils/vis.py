@@ -48,7 +48,7 @@ def vis_keypoints(img, kps, kps_lines, kp_thresh=0.4, alpha=1):
     return cv2.addWeighted(img, 1.0 - alpha, kp_mask, alpha, 0)
 
 def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, input_shape=(256, 256)):
-
+    # vis with x, z , -y
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
@@ -91,7 +91,12 @@ def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, input_shape=(2
     plt.show()
     cv2.waitKey(0)
 
-
+def vis_entry(entry_dict):
+    '''
+    from the entry dict plot the images
+    :param entry_dict:
+    :return:
+    '''
 
 if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
@@ -100,7 +105,7 @@ else:
 
 
 def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
-    """Save images to the disk.
+    """Save images to the disk. Also to webpage
 
     Parameters:
         webpage (the HTML class) -- the HTML webpage class that stores these imaegs (see html.py for more details)

@@ -14,11 +14,9 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from utils import utils_pose
 
-skel_def = {'h36m'}
-
 class AdpDataset_3d(Dataset):
 	'''
-	adaptation datasest to make uniform interface for 3D pose
+	adaptation datasest to make uniform interface for 3D pose. Take in all data as db original, augment, then map to original,  normalize to HM, to tensor
 	changed to dict based feed e
 	'''
 	def __init__(self, db, ref_joints_name, is_train, transform, opts={}):
@@ -83,10 +81,10 @@ class AdpDataset_3d(Dataset):
 			joint_img[i, 0:2] = trans_point2d(joint_img[i, 0:2], trans) # to pix:patch under input_shape size
 		if 'joint_cam' in data.keys() and 'y' == self.opts.if_normBone:
 			joint_2d = joint_img[:, 0:2]    # x,y pix:patch
-			joint_cam = data.joint_cam
+			joint_cam = data['joint_cam']
 			# boneLen3d = data['boneLen3d']
 			boneLen2d_pix = utils_pose.get_boneLen(joint_2d, skeleton)  # rescaled bone
-			boneLen2d_mm = utils_pose.get_boneLen(joint_cam[:, :2])
+			boneLen2d_mm = utils_pose.get_boneLen(joint_cam[:, :2], skeleton)
 			rt_pix2mm = boneLen2d_pix / boneLen2d_mm
 			joint_img[:,2] *= rt_pix2mm/self.opts.input_shape[0]    # z = z*2d/3d /inp_size/  normalize to image size. Note, people usually use square space, yet for tight BB, sometimes it is possible depth is larger then 2d space. so I keep sensing range x:y:z = 1:1:2 ratio to include distant z. Estimation use standard z
 		else:       # fix box norm
@@ -137,7 +135,7 @@ class AdpDataset_3d(Dataset):
 
 
 		# return img_patch, joint_img, joint_vis, joints_have_depth # single item
-		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis':joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v':if_SYN}
+		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis':joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v':if_SYN}       # only image transformed to tensor other still np
 		# else:
 		# 	img_patch = self.transform(img_patch)   # optional data feed
 		# 	return {'img_patch':img_patch}

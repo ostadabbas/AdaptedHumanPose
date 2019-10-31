@@ -11,6 +11,7 @@ from utils.vis import vis_keypoints, vis_3d_skeleton
 import utils.utils_pose as ut_p
 import utils.utils_tool as ut_t
 from collections import OrderedDict
+from pathlib import Path
 # from Human36M_eval import calculate_score
 
 
@@ -48,6 +49,7 @@ class Human36M:
 	flip_pairs = nameToIdx(flip_pairs_name, joints_name)
 	skeleton = nameToIdx(skels_name, joints_name)
 	eval_joint = nameToIdx(evals_name, joints_name)
+	if_SYN = False
 
 	def __init__(self, data_split, opts={}):
 		self.data_split = data_split
@@ -71,7 +73,6 @@ class Human36M:
 		# 	self.boneLen2Dave_mm = 3800
 		self.boneLen2Dave_mm = self.boneLen2Dave_mm_cfg[opts.if_cmJoints]
 		self.joints_have_depth = True
-		self.if_SYN = True
 		self.action_name = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases',
 		                    'Sitting', 'SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog',
 		                    'WalkTogether']
@@ -157,7 +158,8 @@ class Human36M:
 			if frame_idx % sampling_ratio != 0:
 				continue
 
-			img_path = osp.join(self.img_dir, img['file_name'])
+			# img_path = osp.join(self.img_dir, img['file_name'])
+			img_path = str(Path(self.img_dir) / img['file_name'])       # for linux/windows compatibility
 			img_width, img_height = img['width'], img['height']
 			cam_param = img['cam_param']
 			R, t, f, c = np.array(cam_param['R']), np.array(cam_param['t']), np.array(cam_param['f']), np.array(cam_param['c'])
@@ -194,7 +196,6 @@ class Human36M:
 				bbox[1] = c_y - bbox[3] / 2.
 
 			data.append({
-				'file_name': img['file_name'],      # add file name for refer
 				'img_path': img_path,
 				'img_id': image_id,
 				'bbox': bbox,
@@ -246,7 +247,7 @@ class Human36M:
 			gt_3d_root = gt['root_cam']
 			gt_3d_kpt = gt['joint_cam']
 			gt_vis = gt['joint_vis']
-			file_name = gt['file_name'] # to check categories
+			img_path = gt['img_path']
 
 			if self.joints_name != self.opts.ref_joints_name:
 				gt_3d_kpt = ut_p.transform_joint_to_other_db(gt_3d_kpt, self.joints_name, self.opts.ref_joints_name)
@@ -294,7 +295,7 @@ class Human36M:
 
 			# prediction list with full joints
 			pred_save.append({'img_id': image_id,       # maybe for json , use list
-			                  'file_name': file_name,
+			                  'img_path': img_path,
 			                  'joint_cam': pred_3d_kpt.tolist(),
 			                  'joint_cam_aligned': pred_3d_kpt_align.tolist(),
 			                  'joint_cam_gt': gt_3d_kpt.tolist(),
@@ -311,7 +312,7 @@ class Human36M:
 			z1_error[i] = np.abs(pred_3d_kpt_align[:,2] - gt_3d_kpt[:, 2])  # n_jt : abs
 			z2_error[i] = np.abs(pred_3d_kpt[:,2] - gt_3d_kpt[:, 2])  # n_jt
 
-			action_idx = int(file_name[file_name.find('act') + 4:file_name.find('act') + 6]) - 2
+			action_idx = int(img_path[img_path.find('act') + 4:img_path.find('act') + 6]) - 2
 			p1_error_action[action_idx].append(p1_error[i].copy())
 			p2_error_action[action_idx].append(p2_error[i].copy())
 			z1_error_action[action_idx].append(z1_error[i].copy())
@@ -390,6 +391,7 @@ class Human36M:
 		data_li = [p1_err_action_av, p2_err_action_av, z1_err_action_av, z2_err_action_av]
 		for nm, row in zip(nm_li, data_li):
 			prt_func(row_format.format(nm, *row))
+		prt_func('eval diff is', diff_av)
 
 		return err_dict
 

@@ -6,7 +6,8 @@ from utils.utils_pose import get_bbox
 from pycocotools.coco import COCO
 from config import cfg
 
-class MuCo:
+class MuCo:  # we don't use this one, so not processed
+    if_SYN = False
     def __init__(self, data_split, opts={}):
         self.data_split = data_split
         self.ds_dir = opts.ds_dir

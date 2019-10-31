@@ -22,7 +22,8 @@ def parseArgs():
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	# add argument in
 	#-- env settings
-	parser.add_argument('--ds_dir', default='/scratch/liu.shu/datasets', help='dataset directionry')
+	# parser.add_argument('--ds_dir', default='/scratch/liu.shu/datasets', help='dataset directionry')
+	parser.add_argument('--ds_dir', default=r'S:\ACLab\datasets', help='dataset directionry')
 	parser.add_argument('--output_dir', default='output', help='default output dirs') # model, rst, vis will be under this dir.
 	# parser.add_argument('--cocoapi_dir', default='/scratch/liu.shu/codesPool/cocoapi/PythonAPI', help='coco api dir')
 	parser.add_argument('--cocoapi_dir', default=r'G:\My Drive\research\Sarah Ostadabbas\codePool\cocoapi\PythonAPI', help='coco api dir')
@@ -40,11 +41,11 @@ def parseArgs():
 	parser.add_argument('--lmd_D', default=0.01, type=float, help='weight for D loss, 0. for no D')
 	parser.add_argument('--if_ylB', default='y', help='if train the low task in target B domain')
 	parser.add_argument('--if_tightBB_ScanAva', default='n', help='if use tight bb for scanAva')
-	parser.add_argument('--rt_SYN', default=1., type=float, help='the ratio of the subjects used in training, either scalAvan or SURREAL with floor operation, make it gerater than one I think')
+	parser.add_argument('--rt_SYN', default=10, type=float, help='the ratio of the subjects used in training, larger step will make less training data')
 	parser.add_argument('--inp_sz', default=256, help='input image size')
 	parser.add_argument('--end_epoch', default=25, type=int, help='when reach this epoch, will stop. python index style, your model will be saved as epoch_tar-1')
-	parser.add_argument('--epoch_step', default=5, type=int, help='mainly for time constrained system, each time only train step epoches, -1 for all')
-	parser.add_argument('--trainIter', default=-1, type=int, help='train iters each epoch, -1 for whole set. For debug purpose (DBP)')
+	parser.add_argument('--epoch_step', default=1, type=int, help='mainly for time constrained system, each time only train step epoches, -1 for all')
+	parser.add_argument('--trainIter', default=5, type=int, help='train iters each epoch, -1 for whole set. For debug purpose (DBP)')
 	parser.add_argument('--if_normBone', default='y', help='true of false [y|n] normalized the bones')
 	parser.add_argument('--if_fixG', default='n', help='if fix G after introducing z training')
 	parser.add_argument('--epoch_regZ', default=0, help='when to start training z part. depend on option to see if fixG or not. 0 means from very beginning')
@@ -66,7 +67,7 @@ def parseArgs():
 	parser.add_argument('--if_cmJoints', default='y', help='if use common joints across datasets without including the contriversal parts like sites and upper neck, torso, but only neck and head, pelvis will be always kept')
 
 	# -- visualization
-	parser.add_argument('--display_id', type=int, default=-1, help='window id of the web display')
+	parser.add_argument('--display_id', type=int, default=1, help='window id of the web display')
 	parser.add_argument('--display_server', type=str, default="http://localhost",
 	                    help='visdom server of the web display')
 	parser.add_argument('--display_env', type=str, default='main',
@@ -77,7 +78,7 @@ def parseArgs():
 
 	# -- test setting
 	parser.add_argument('--testset', default='Human36M', help='testset, usually single')
-	parser.add_argument('--testIter', type=int, default=-1, help='test iterations final and epoch test, -1 for all, DBP')
+	parser.add_argument('--testIter', type=int, default=2, help='test iterations final and epoch test, -1 for all, DBP')
 	# parser.add_argument('--n_foldingLpTest', type=int, default=20, help='downsample the epoch test to quicken the in loop test process. 1 for full test in loop')
 	parser.add_argument('--gan_mode', default='lsgan', help='gan type [lsgan|vanilla]')
 	parser.add_argument('--if_flipTest', default='n')
@@ -119,7 +120,8 @@ def parseArgs():
 	opts.clipMode = '01'        # for save image purpose
 	opts.adj_dict = {     # fill this if after calculation
 		'Human36M': (0, 0, 0),
-		'MuPoTS': (0, 0, 0)
+		'MuPoTS': (0, 0, 0),
+		'ScanAva': None,
 	}
 	opts.adj = opts.adj_dict[opts.testset]      # choose the one
 
@@ -181,11 +183,11 @@ def print_options(opt):
 
 	# save to the disk
 	# expr_dir = os.path.join(opt.checkpoints_dir, opt.name)
-	# tool.mkdirs(expr_dir)  # all option will mk dirs
-	file_name = os.path.join(opt.exp_dir, 'opts.txt')
-	with open(file_name, 'wt') as opt_file:
-		opt_file.write(message)
-		opt_file.write('\n')
+	# tool.mkdirs(expr_dir)  # all option will mk dirs  # saved to json file in set_env
+	# file_name = os.path.join(opt.exp_dir, 'opts.txt')
+	# with open(file_name, 'wt') as opt_file:
+	# 	opt_file.write(message)
+	# 	opt_file.write('\n')
 
 opts = parseArgs()
 

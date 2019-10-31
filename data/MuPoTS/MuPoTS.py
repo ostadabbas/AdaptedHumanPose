@@ -12,6 +12,7 @@ from utils.utils_pose import pixel2cam, get_bbox, warp_coord_to_original
 from utils.vis import vis_keypoints, vis_3d_skeleton
 
 class MuPoTS:
+    if_SYN = False
     def __init__(self, data_split, opts={}):
         self.data_split = data_split
         self.ds_dir = opts.ds_dir
@@ -28,7 +29,6 @@ class MuPoTS:
         self.skeleton = ( (0, 16), (16, 1), (1, 15), (15, 14), (14, 8), (14, 11), (8, 9), (9, 10), (11, 12), (12, 13), (1, 2), (2, 3), (3, 4), (1, 5), (5, 6), (6, 7) )
         self.eval_joint = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
         self.joints_have_depth = True
-        self.if_SYN = False
         self.root_idx = self.joints_name.index('Pelvis')
         self.data = self.load_data()
 
