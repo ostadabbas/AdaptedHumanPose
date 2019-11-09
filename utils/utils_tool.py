@@ -11,7 +11,8 @@ import os.path as osp
 from . import vis
 import cv2
 import matplotlib.pyplot as plt
-from skimage import io, transform
+from skimage import io, transform, img_as_ubyte
+
 
 
 def getNumInStr(str_in, tp=int):
@@ -48,7 +49,7 @@ def add_pypath(path):
 		sys.path.insert(0, path)
 
 
-def tensor2im(input_image, imtype=np.uint8, clipMod='clip11'):
+def tensor2im(input_image, imtype=np.uint8, clipMod='clip01'):
 	""""Converts a Tensor array into a numpy image array.
 
     Parameters:
@@ -103,13 +104,14 @@ def save_image(image_numpy, image_path):
 	image_pil.save(image_path)
 
 
-def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None):
+def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None, rg=None):
 	'''
-	simplified version comparing to vis pack.  Just show the skeleton, if non visibility infor, show full skeleton. Plot in plt, and save it.
-	:param kpt_3d:
+	simplified version with less positional input comparing to vis pack.  Just show the skeleton, if non visibility infor, show full skeleton. Plot in plt, and save it.
+	:param kpt_3d:  n_jt * 3
 	:param skel:
 	:param kpt_3d_vis:
 	:param sv_pth: if not given then show the 3d figure.
+	:param rg: the range for x, y and z in  ( (xs, xe), (ys, ye), (zs, ze)) format
 	:return:
 	'''
 
@@ -133,24 +135,29 @@ def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None):
 		if kpt_3d_vis[i1, 0] > 0 and kpt_3d_vis[i2, 0] > 0:
 			ax.plot(x, z, -y, c=colors[l], linewidth=2)
 		if kpt_3d_vis[i1, 0] > 0:
-			ax.scatter(kpt_3d[i1, 0], kpt_3d[i1, 2], -kpt_3d[i1, 1], c=colors[l], marker='o')
+			ax.scatter(kpt_3d[i1, 0], kpt_3d[i1, 2], -kpt_3d[i1, 1], c=[colors[l]], marker='o')
 		if kpt_3d_vis[i2, 0] > 0:
-			ax.scatter(kpt_3d[i2, 0], kpt_3d[i2, 2], -kpt_3d[i2, 1], c=colors[l], marker='o')
+			ax.scatter(kpt_3d[i2, 0], kpt_3d[i2, 2], -kpt_3d[i2, 1], c=[colors[l]], marker='o')
 
 	ax.set_title('3D vis')
 	ax.set_xlabel('X Label')
 	ax.set_ylabel('Z Label')
 	ax.set_zlabel('Y Label')
 
+	if rg:
+		ax.set_xlim(rg[0])      # x
+		ax.set_zlim([-e for e in rg[1]][::-1])   # - y
+		ax.set_ylim(rg[2])
+
 	# ax.set_xlim([0,cfg.input_shape[1]])
 	# ax.set_ylim([0,1])
 	# ax.set_zlim([-cfg.input_shape[0],0])
-	ax.legend()
+	# ax.legend()       # no legend
 	if not sv_pth:  # no path given, show image, otherwise save
 		plt.show()
 	else:
 		fig.savefig(sv_pth, bbox_inches='tight')
-
+	plt.close(fig)  # clean after use
 
 def ts2cv2(img_ts, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
 	'''
@@ -160,7 +167,10 @@ def ts2cv2(img_ts, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
 	:param std:
 	:return:
 	'''
-	tmpimg = img_ts.cpu().numpy()
+	if not isinstance(img_ts, np.ndarray):  # if tensor transfer it
+		tmpimg = img_ts.cpu().detach().numpy()
+	else:
+		tmpimg = img_ts.copy()
 	tmpimg = tmpimg * np.array(std).reshape(3, 1, 1) + np.array(mean).reshape(3, 1, 1)
 	tmpimg = tmpimg.astype(np.uint8)
 	tmpimg = tmpimg[::-1, :, :]  # BGR
@@ -202,10 +212,10 @@ def save_3d_tg3d(kpt_3d, sv_dir, skel, idx='tmp', suffix=None):
 	vis_3d(kpt_3d, skel, sv_pth=sv_pth)
 
 
-def save_hm_tg3d(HM, sv_dir, idx='tmp', if_cmap=True):
+def save_hm_tg3d(HM, sv_dir, n_jt=17, idx='tmp', if_cmap=True):
 	'''
 	transfer 3d heatmap into front view and side view
-	:param HM:  cxhxw  format numpy possibly  0~1
+	:param HM:  cxhxw  format numpy possibly  0~1  (64x17) * 64 * 64
 	:param sv_dir:
 	:param idx:
 	:return:
@@ -213,50 +223,69 @@ def save_hm_tg3d(HM, sv_dir, idx='tmp', if_cmap=True):
 	sv_dir = osp.join(sv_dir, 'hm')
 	make_folder(sv_dir)
 
-	hm_xy = HM.mean(axis=0)  # channel first
-	hm_yz = HM.mean(axis=2)  # along the x direction or r direction
+	# to each jt  # reshape change itself?
+	depth_dim = int(HM.shape[0]/n_jt)
+	hm = HM.copy().reshape([n_jt, depth_dim, *HM.shape[1:]])
+	hm_xy_li = []
+	hm_yz_li = []
+	for i in range(n_jt):
+		hm_xy = hm[i].mean(axis=0)  # channel first
+		hm_yz = hm[i].mean(axis=2)  # along the x direction or r direction
+		hm_xy_li.append(hm_xy)
+		hm_yz_li.append(hm_yz)
+		if if_cmap:
+			cmap = plt.cm.jet
+			norm = plt.Normalize(vmin=hm_xy.min(), vmax=hm_xy.max())
+			hm_xy = cmap(norm(hm_xy))
+			norm = plt.Normalize(vmin=hm_yz.min(), vmax=hm_yz.max())
+			hm_yz = cmap(norm(hm_yz))
+		io.imsave(osp.join(sv_dir, 'f{}_jt{}.png'.format(idx, i)), img_as_ubyte(hm_xy))
+		io.imsave(osp.join(sv_dir, 's{}_jt{}.png'.format(idx, i)), img_as_ubyte(hm_yz))
+	# for total
+	hm_xy_tot = np.mean(hm_xy_li, axis=0)
+	hm_yz_tot = np.mean(hm_yz_li, axis=0)
 	if if_cmap:
 		cmap = plt.cm.jet
-		norm = plt.Normalize(vmin=hm_xy.min(), vmax=hm_xy.max())
-		hm_xy = cmap(norm(hm_xy))
-		norm = plt.Normalize(vmin=hm_yz.min(), vmax=hm_yz.max())
-		hm_yz = cmap(norm(hm_yz))
-
-	io.imsave(osp.join(sv_dir, 'f_' + str(idx) + '.jpg'), hm_xy)
-	io.imsave(osp.join(sv_dir, 's_' + str(idx) + '.jpg'), hm_yz)
-
+		norm = plt.Normalize(vmin=hm_xy_tot.min(), vmax=hm_xy_tot.max())
+		hm_xy_tot = cmap(norm(hm_xy_tot))
+		norm = plt.Normalize(vmin=hm_yz_tot.min(), vmax=hm_yz_tot.max())
+		hm_yz_tot = cmap(norm(hm_yz_tot))
+	io.imsave(osp.join(sv_dir, 'f{}_tot.png'.format(idx, i)), img_as_ubyte(hm_xy_tot))
+	io.imsave(osp.join(sv_dir, 's{}_tot.png'.format(idx, i)), img_as_ubyte(hm_yz_tot))
 
 def save_Gfts_tg3d(G_fts, sv_dir, idx='tmp', shape=(5, 5), out_sz=(64, 64)):
 	'''
 
 	:param G_fts:
-	:param sv_dir:
+	:param sv_dir_G:
 	:param idx:
 	:param shape: what grid is needed,  first prod(shape) elements will be used to form grid
 	:param out_sz: the output size of the feature map to make it large
 	:return:
 	'''
-	sv_dir = osp.join(sv_dir, 'G_fts')
-	make_folder(sv_dir)
+	sv_dir_G = osp.join(sv_dir, 'G_fts')
+	make_folder(sv_dir_G)
 	n = np.prod(shape)
 	fts = G_fts[:n]  # only first few
-	n_cols = shape(1)
+	n_cols = shape[1]
 	# resize the fts (c last , resize, c back)
 	fts_rsz = transform.resize(fts.transpose((1, 2, 0)), out_sz).transpose((2, 0, 1))
 	# gallery
 	grid = gallery(fts_rsz, n_cols=n_cols)
 	#  cmap = plt.cm.jet        # can also color map it
 	# save
-	io.imsave(osp.join(sv_dir, str(idx)+'.jpg'), grid)
+	norm = plt.Normalize(vmin=grid.min(), vmax=grid.max())
+	io.imsave(osp.join(sv_dir_G, str(idx) + '.png'), img_as_ubyte(norm(grid)))
 
 	# for histogram
-	sv_dir = osp.join(sv_dir, 'hist')
-	make_folder(sv_dir)
+	sv_dir_hist = osp.join(sv_dir, 'hist')
+	make_folder(sv_dir_hist)
 	# hist_G = np.histogram(G_fts)
-	plt.hist(G_fts, bins=50)
-	plt.savefig(osp.join(sv_dir, str(idx)+'.jpg'))
+	plt.clf()
+	plt.hist(G_fts.flatten(), bins=50)
+	plt.savefig(osp.join(sv_dir_hist, str(idx) + '.png'))
 
-def gallery(array, ncols=5):
+def gallery(array, n_cols=5):
 	nindex, height, width = array.shape[:3]
 	shp = array.shape
 	if len(shp) > 3:
@@ -264,16 +293,16 @@ def gallery(array, ncols=5):
 		intensity = shp[3]
 	else:
 		if_clr = False
-	nrows = nindex // ncols
-	assert nindex == nrows * ncols
+	nrows = nindex // n_cols
+	assert nindex == nrows * n_cols
 	# want result.shape = (height*nrows, width*ncols, intensity)
 	# shp_new = [nrows,ncols, height, width] + shp[3:]
 	if if_clr:
-		result = (array.reshape(nrows, ncols, height, width, intensity)
+		result = (array.reshape(nrows, n_cols, height, width, intensity)
 		          .swapaxes(1, 2)
-		          .reshape(height * nrows, width * ncols, intensity))
+		          .reshape(height * nrows, width * n_cols, intensity))
 	else:
-		result = (array.reshape(nrows, ncols, height, width)
+		result = (array.reshape(nrows, n_cols, height, width)
 		          .swapaxes(1, 2)
-		          .reshape(height * nrows, width * ncols))
+		          .reshape(height * nrows, width * n_cols))
 	return result

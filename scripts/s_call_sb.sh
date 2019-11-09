@@ -7,13 +7,22 @@
 
 # change exp names to experiment needs, each run a python train/test codes
 #change paths to your desired locations:
-SOURCEPATH=scripts_test  # call this from a sub folder of main
+SOURCEPATH=scripts  # call this from a sub folder of main
 #CURRDIR=/scratch/username/...
 N=3
-declare -a arr_exp=("exp1"
-                "exp2"
-#                "exp3"
-#                "exp4"
+declare -a arr_exp=(
+#"D0_R2"
+#"D0_z10_nfG_ylB_yNB_nScra"
+#"D01_z10_nfG_ylB_yNB_nScra"
+##"D001_z0_nfG_ylB_yNB_nScra"
+#"D001_z0_nfG_ylB_yNB_nScra_nNB"
+#"D001_z2_scra_3-10-20"
+#"D001_z10_nfG_nlB_yNB_nScra"
+#"D001_z10_nfG_ylB_yNB_nScra"
+#"D001_z10_nfG_ylB_yNB_yScra"
+#"D001_z10_yfG_ylB_yNB_nScra"
+"D10_z10_nfG_ylB_yNB_nScra"
+"D1_z10_nfG_ylB_yNB_nScra"
                 )
 
 for i in "${!arr_exp[@]}"; do
@@ -27,13 +36,14 @@ for i in "${!arr_exp[@]}"; do
 
     if [ "$j" -eq "1" ]; then
     ##retrieve the job id number after submitting the created job script:
-    JOBID=`sbatch --job-name=$i-$j ${SOURCEPATH}/${arr_exp[$i]}.sh | sed 's/>//g;s/<//g' | awk '{print $4}'`
+#    JOBID=`sbatch --job-name=$i-$j ${SOURCEPATH}/${arr_exp[$i]}.sh | sed 's/>//g;s/<//g' | awk '{print $4}'`  # with $i-$j job name
+    JOBID=`sbatch ${SOURCEPATH}/${arr_exp[$i]}.sh | sed 's/>//g;s/<//g' | awk '{print $4}'`  # we can easily see it by same name + jobID
     else
     ## if not the first job, submit this job as a dependent of the previous submitted job:
-    JOBID=`sbatch --job-name=$i-$j --dependency=afterok:${JOBID} ${SOURCEPATH}/${arr_exp[$i]}.sh | sed 's/>//g;s/<//g' | awk '{print $4}'`
-#    JOBID=`sbatch --dependency=afterok:${JOBID} ${CURRDIR}/sub.${i}.bash | sed 's/>//g;s/<//g' | awk '{print $4}'`
+#    JOBID=`sbatch --job-name=$i-$j --dependency=afterok:${JOBID} ${SOURCEPATH}/${arr_exp[$i]}.sh | sed 's/>//g;s/<//g' | awk '{print $4}'`
+    JOBID=`sbatch --dependency=afterok:${JOBID} ${SOURCEPATH}/${arr_exp[$i]}.sh | sed 's/>//g;s/<//g' | awk '{print $4}'`
     fi
-    echo main sbatch job $i sub $j with ID $JOBID at `date`
+    echo main sbatch job $i ${SOURCEPATH}/${arr_exp[$i]}.sh sub $j with ID $JOBID at `date`
     ##sleep for 1 second to let scheduler update job status properly before submitting more jobs:
     sleep 1
     done

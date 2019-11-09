@@ -4,7 +4,7 @@ import numpy as np
 import math
 from utils.utils_pose import get_bbox
 from pycocotools.coco import COCO
-from config import cfg
+# from config import cfg
 
 class MuCo:  # we don't use this one, so not processed
     if_SYN = False
@@ -89,7 +89,7 @@ class MuCo:  # we don't use this one, so not processed
                 h = bbox[3]
                 c_x = bbox[0] + w/2.
                 c_y = bbox[1] + h/2.
-                aspect_ratio = cfg.input_shape[1]/cfg.input_shape[0]
+                aspect_ratio = self.opts.input_shape[1]/self.opts.input_shape[0]
                 if w > aspect_ratio * h:
                     h = w / aspect_ratio
                 elif w < aspect_ratio * h:

@@ -17,7 +17,11 @@
    this version supports windows. For linux, you can also use the offical release.    
 cd to folder pythonAPI  
 `python setup.py install`
-will install package to python packages 
+will install package to python packages. 
+
+`scripts` for independent training scripts. 
+`scripts_v2` is built to accept 'train' or 'test' arguments. 
+ 
  	
 ## Introduction
 

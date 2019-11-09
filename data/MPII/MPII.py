@@ -5,14 +5,14 @@ from pycocotools.coco import COCO
 import utils.utils_pose as ut_p
 # from config import cfg
 from pathlib import Path
-
+from tqdm import tqdm
 
 class MPII:
 	joint_num = 17
 	joint_num_ori = 16  # no Torso joint
 	joints_name = (
 		'R_Ankle', 'R_Knee', 'R_Hip', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Thorax', 'Neck', 'Head', 'R_Wrist','R_Elbow', 'R_Shoulder', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'Torso')  # full std joints
-	joints_eval_name = joints_name[:joint_num_ori]  # no last name
+	evals_name = joints_name[:joint_num_ori]  # no last name
 	flip_pairs_name = (
 		('R_Hip', 'L_Hip'), ('R_Knee', 'L_Knee'), ('R_Ankle', 'L_Ankle'),
 		('R_Shoulder', 'L_Shoulder'), ('R_Elbow', 'L_Elbow'), ('R_Wrist', 'L_Wrist')
@@ -24,7 +24,7 @@ class MPII:
 		('Pelvis', 'R_Hip'), ('R_Hip', 'R_Knee'), ('R_Knee', 'R_Ankle'),
 		('Pelvis', 'L_Hip'), ('L_Hip', 'L_Knee'), ('L_Knee', 'L_Ankle'),
 	)  # for original preferred skel
-	flip_pairs = ut_p.nameToIdx(flip_pairs_name, joints_name)
+	flip_pairs = ut_p.nameToIdx(flip_pairs_name, joints_name)       # idx
 	skeleton = ut_p.nameToIdx(skels_name, joints_name)
 	if_SYN = False
 	def __init__(self, data_split, opts={}):
@@ -35,8 +35,8 @@ class MPII:
 		self.img_dir = osp.join(opts.ds_dir, 'MPII')  # list name with images
 		self.train_annot_path = osp.join(opts.ds_dir, 'MPII', 'annotations', 'train.json')
 		self.joints_have_depth = False
+		self.if_train = 1 if 'y' == opts.if_ylB else 0  # low level supervision or no
 		self.data = self.load_data()
-		self.if_train = 1 if 'y' == opts.if_ylB else 0  # according to task request to supervise or not the joints.
 
 	def aug_jts(self, jts):
 		'''
@@ -48,7 +48,7 @@ class MPII:
 		jtNms= self.joints_name
 		jt_torso = (jts[jtNms.index('Thorax'),:] + jts[jtNms.index('Pelvis')])/2.   # torso parts
 		jt_torso[2] = 1         # assume visible
-		jts= np.vstack((jts, jt_torso))
+		jts = np.vstack((jts, jt_torso))
 		return jts
 
 	def load_data(self):
@@ -59,7 +59,7 @@ class MPII:
 			assert 0
 
 		data = []
-		for aid in db.anns.keys():
+		for aid in tqdm(db.anns.keys(), 'MPII loading'):
 			ann = db.anns[aid]
 
 			if (ann['image_id'] not in db.imgs) or ann['iscrowd'] or (ann['num_keypoints'] == 0):
@@ -99,11 +99,11 @@ class MPII:
 			joint_img = self.aug_jts(joint_img)
 			# joint_vis = joint_img[:, 2].copy().reshape(-1, 1)
 			joint_vis = joint_img[:, 2].copy().reshape(-1, 1) * self.if_train   # if not train, all not visible
-			joint_img[:, 2] = 0
+			joint_img[:, 2] = 0 # no depth
 
 			imgname = db.imgs[ann['image_id']]['file_name']
 			# img_path = osp.join(self.img_dir, imgname)
-			img_path = Path(self.img_dir) / imgname
+			img_path = str(Path(self.img_dir) / imgname)
 			data.append({
 				'img_path': img_path,
 				'bbox': bbox,

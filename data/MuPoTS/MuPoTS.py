@@ -3,12 +3,12 @@ import os.path as osp
 import scipy.io as sio
 import numpy as np
 from pycocotools.coco import COCO
-from config import cfg
+# from config import cfg
 import json
 import cv2
 import random
 import math
-from utils.utils_pose import pixel2cam, get_bbox, warp_coord_to_original
+from utils.utils_pose import pixel2cam, get_bbox, warp_coord_to_ori
 from utils.vis import vis_keypoints, vis_3d_skeleton
 
 class MuPoTS:
@@ -154,8 +154,9 @@ class MuPoTS:
             pred_2d_kpt = preds[n].copy()
             # only consider eval_joint
             pred_2d_kpt = np.take(pred_2d_kpt, self.eval_joint, axis=0)
-            pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_original(pred_2d_kpt, bbox, gt_3d_root)
-            
+            # pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_original(pred_2d_kpt, bbox, gt_3d_root)
+            pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_ori(pred_2d_kpt, bbox, gt_3d_root, opts=self.opts, skel=self.opts.ref_skels_idx)
+
             # 2d kpt save
             if img_name in pred_2d_save:
                 pred_2d_save[img_name].append(pred_2d_kpt[:,:2])

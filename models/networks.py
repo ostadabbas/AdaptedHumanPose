@@ -30,7 +30,7 @@ def get_norm_layer(norm_type='instance'):
 
 def get_scheduler(optimizer, opts):
     """Return a learning rate scheduler
-
+    can't use last epoch for initalize as 'last_epoch=opts.start_epoch - 1' maybe pytorch's bug .
     Parameters:
         optimizer          -- the optimizer of the network
         opts (option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions．　
@@ -41,23 +41,22 @@ def get_scheduler(optimizer, opts):
     For other schedulers (step, plateau, and cosine), we use the default PyTorch schedulers.
     See https://pytorch.org/docs/stable/optim.html for more details.
     """
-    if opts.lr_policy == 'linear':       # not working this one
+    if opts.lr_policy == 'linear':       # not working now. If need, add decay args
         def lambda_rule(epoch):
-            lr_l = 1.0 - max(0, epoch + opts.start_epoch - opts.niter) / float(opts.niter_decay + 1)
+            lr_l = 1.0 - max(0, epoch - opts.epoch_decay_st - opts.niter_decay) / float(opts.niter_decay + 1)
             return lr_l
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule, last_epoch=opts.start_epoch - 1)
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opts.lr_policy == 'step':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=opts.lr_decay_iters, gamma=0.1, last_epoch=opts.start_epoch - 1)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=opts.lr_decay_iters, gamma=0.1)
     elif opts.lr_policy == 'plateau':    # metric not updated no use
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5, last_epoch=opts.start_epoch - 1)
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
     elif opts.lr_policy == 'cosine':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opts.niter, eta_min=0, last_epoch=opts.start_epoch - 1)
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opts.niter, eta_min=0)
     elif opts.lr_policy == 'multi_step':
-        scheduler = lr_scheduler.MultiStepLR(optimizer, opts.lr_dec_epoch, last_epoch=opts.start_epoch - 1)    # gamma default one is 0.1
+        scheduler = lr_scheduler.MultiStepLR(optimizer, opts.lr_dec_epoch)    # gamma default one is 0.1
     else:
         return NotImplementedError('learning rate policy [%s] is not implemented', opts.lr_policy)
     return scheduler
-
 
 def init_weights(net, init_type='normal', init_gain=0.02):
     """Initialize network weights.
@@ -914,7 +913,7 @@ class NLayerDiscriminator(nn.Module):
         else:
             use_bias = norm_layer != nn.BatchNorm2d
 
-        kw = 4
+        kw = 3      # original 4
         padw = 1
         sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
         nf_mult = 1

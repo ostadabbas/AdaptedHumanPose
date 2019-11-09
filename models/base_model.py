@@ -34,9 +34,9 @@ class BaseModel(ABC):
 		self.gpu_ids = opts.gpu_ids
 		self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device(
 			'cpu')  # get device name: CPU or GPU
-		self.save_dir = os.path.join(opts.checkpoints_dir, opts.name)  # save all the checkpoints to save_dir
-		if opts.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
-			torch.backends.cudnn.benchmark = True
+		self.save_dir = opts.model_dir  # save all the checkpoints to save_dir
+		# if opts.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
+		# torch.backends.cudnn.benchmark = True
 		self.loss_names = []
 		self.model_names = []
 		self.visual_names = []
@@ -202,9 +202,10 @@ class BaseModel(ABC):
 		}
 
 		# save, name save
-		save_nm = 'checkpoint_%s.pth'.format(epoch)
+		save_nm = 'checkpoint_%s.pth' % (epoch)
 		save_pth = os.path.join(self.opts.model_dir, save_nm)
 		torch.save(ckpt, save_pth)
+		print('model saved at {}'.format(save_pth))
 		# if gpus, recover to gpu,  #
 		# if len(self.gpu_ids) > 0 and torch.cuda.is_available():
 		# 	for model in self.models:
@@ -227,6 +228,7 @@ class BaseModel(ABC):
 
 	def load_networks(self, epoch):
 		"""Load all the networks from the disk.
+		scheduler not implemented for perfect I/O, if need pay attention to device
 
 		Parameters:
 			epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
@@ -252,14 +254,19 @@ class BaseModel(ABC):
 		# 		net.load_state_dict(state_dict)
 		# ---- end ---
 
-		load_nm = 'checkpoints_%s.pth'.format(epoch)
+		load_nm = 'checkpoint_%s.pth' % (epoch)
 		load_pth = os.path.join(self.opts.model_dir, load_nm)
-		print('loading model from %s'.format(load_pth))
+		print('loading model from %s' % (load_pth))
 		ckpt = torch.load(load_pth, map_location=str(self.device))
 		if ckpt['epoch'] != epoch:
 			print('Attention, load and saved epoch not equal!')     #
 		if self.model_names != ckpt['model_nms']:
 			print('model names not equal')
+
+		# update scheduler
+		for i in range(0, self.opts.start_epoch -1):       # if we start at n, then step n-1 times, could be warning that step before optimizer, ignore it simply
+			for scheduler in self.schedulers:
+				scheduler.step()
 
 		# load model, not handel meta and  prior 0.4 problem
 		for i, model in enumerate(self.models):
@@ -267,9 +274,11 @@ class BaseModel(ABC):
 				model = model.module
 			model.load_state_dict(ckpt['models'][i])
 
-		# load dict
+		# optimizer load dict
 		for i, optim in enumerate(self.optimizers):
 			optim.load_state_dict(ckpt['optimizers'][i])
+
+
 
 
 	def print_networks(self, verbose):

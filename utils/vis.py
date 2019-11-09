@@ -2,6 +2,7 @@
 for key points visualization. Also visualizer for visdom class.
 '''
 import os
+import os.path as osp
 import cv2
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
@@ -12,7 +13,8 @@ import ntpath
 import time
 from . import utils_tool, html
 from subprocess import Popen, PIPE
-from scipy.misc import imresize
+# from scipy.misc import imresize
+from skimage.transform import resize # misc deprecated e
 
 
 def vis_keypoints(img, kps, kps_lines, kp_thresh=0.4, alpha=1):
@@ -47,15 +49,17 @@ def vis_keypoints(img, kps, kps_lines, kp_thresh=0.4, alpha=1):
     # Blend the keypoints.
     return cv2.addWeighted(img, 1.0 - alpha, kp_mask, alpha, 0)
 
-def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, input_shape=(256, 256)):
+def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, input_shape=(256, 256), if_dsFmt=True):
+    # worked mainly for ds format with range set properly
     # vis with x, z , -y
+    # plt.clf()
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
     # Convert from plt 0-1 RGBA colors to 0-255 BGR colors for opencv.
     cmap = plt.get_cmap('rainbow')
     colors = [cmap(i) for i in np.linspace(0, 1, len(kps_lines) + 2)]
-    colors = [np.array((c[2], c[1], c[0])) for c in colors]
+    colors = [np.array((c[0], c[1], c[2])) for c in colors]     #  array list
 
     for l in range(len(kps_lines)):
         i1 = kps_lines[l][0]
@@ -67,9 +71,9 @@ def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, input_shape=(2
         if kpt_3d_vis[i1,0] > 0 and kpt_3d_vis[i2,0] > 0:
             ax.plot(x, z, -y, c=colors[l], linewidth=2)
         if kpt_3d_vis[i1,0] > 0:
-            ax.scatter(kpt_3d[i1,0], kpt_3d[i1,2], -kpt_3d[i1,1], c=colors[l], marker='o')
+            ax.scatter(kpt_3d[i1,0], kpt_3d[i1,2], -kpt_3d[i1,1], c=[colors[l]], marker='o')
         if kpt_3d_vis[i2,0] > 0:
-            ax.scatter(kpt_3d[i2,0], kpt_3d[i2,2], -kpt_3d[i2,1], c=colors[l], marker='o')
+            ax.scatter(kpt_3d[i2,0], kpt_3d[i2,2], -kpt_3d[i2,1], c=[colors[l]], marker='o')
 
     x_r = np.array([0, input_shape[1]], dtype=np.float32)
     y_r = np.array([0, input_shape[0]], dtype=np.float32)
@@ -83,10 +87,11 @@ def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, input_shape=(2
     ax.set_xlabel('X Label')
     ax.set_ylabel('Z Label')
     ax.set_zlabel('Y Label')
-    #ax.set_xlim([0,cfg.input_shape[1]])
-    #ax.set_ylim([0,1])
-    #ax.set_zlim([-cfg.input_shape[0],0])
-    ax.legend()
+    if if_dsFmt:        # if ds format , then form it this way
+        ax.set_xlim([0, input_shape[1]])
+        ax.set_ylim([0,1])
+        ax.set_zlim([-input_shape[0],0])
+    # ax.legend()
 
     plt.show()
     cv2.waitKey(0)
@@ -129,9 +134,9 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
         save_path = os.path.join(image_dir, image_name)
         h, w, _ = im.shape
         if aspect_ratio > 1.0:
-            im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
+            im = resize(im, (h, int(w * aspect_ratio)))
         if aspect_ratio < 1.0:
-            im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
+            im = resize(im, (int(h / aspect_ratio), w))
         utils_tool.save_image(im, save_path)
 
         ims.append(image_name)
@@ -157,7 +162,7 @@ class Visualizer():
         Step 3: create an HTML object for saveing HTML filters
         Step 4: create a logging file to store training losses
         """
-        self.opt = opts  # cache the option
+        self.opts = opts  # cache the option
         self.display_id = opts.display_id
         self.use_html = opts.use_html       #
         self.win_size = opts.display_winsize
@@ -187,6 +192,15 @@ class Visualizer():
         """Reset the self.saved status"""
         self.saved = False
 
+    def load(self, epoch):
+        if osp.exists(osp.join(self.opts.vis_dir, 'vis_{}.npy'.format(epoch))):
+            attr_dict = np.load(osp.join(self.opts.vis_dir, 'vis_{}.npy'.format(epoch)), allow_pickle=True).item()
+            for key in attr_dict:
+                if attr_dict[key]:
+                    setattr(self, key, attr_dict[key])
+        else:
+            print('loading visualizer {} failed, start from scratch'.format(epoch))
+
     def create_visdom_connections(self):
         """If the program could not connect to Visdom server, this function will start a new server at port < self.port > """
         cmd = sys.executable + ' -m visdom.server -p %d &>/dev/null &' % self.port
@@ -194,7 +208,7 @@ class Visualizer():
         print('Command: %s' % cmd)
         Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
 
-    def display_current_results(self, visuals, epoch, save_result):
+    def display_current_results(self, visuals, epoch, save_result, if_bchTs=False):
         """Display current results on visdom; save current results to an HTML file.
 
         Parameters:
@@ -218,7 +232,10 @@ class Visualizer():
                 images = []
                 idx = 0
                 for label, image in visuals.items():
-                    image_numpy = utils_tool.tensor2im(image, clipMod=self.clipMode) # 1st in batch
+                    if if_bchTs:
+                        image_numpy = utils_tool.tensor2im(image, clipMod=self.clipMode) # 1st in batch
+                    else:
+                        image_numpy = image     # directly use current
                     label_html_row += '<td>%s</td>' % label
                     images.append(image_numpy.transpose([2, 0, 1])) # channel first
                     idx += 1
@@ -236,8 +253,7 @@ class Visualizer():
                     self.vis.images(images, nrow=ncols, win=self.display_id + 1,
                                     padding=2, opts=dict(title=title + ' images'))
                     label_html = '<table>%s</table>' % label_html
-                    self.vis.text(table_css + label_html, win=self.display_id + 2,
-                                  opts=dict(title=title + ' labels'))
+                    # self.vis.text(table_css + label_html, win=self.display_id + 2, opts=dict(title=title + ' labels'))        # not useful
                 except VisdomExceptionBase:
                     self.create_visdom_connections()
 
@@ -245,7 +261,10 @@ class Visualizer():
                 idx = 1
                 try:
                     for label, image in visuals.items():
-                        image_numpy = utils_tool.tensor2im(image, clipMod = self.clipMode)
+                        if if_bchTs:
+                            image_numpy = utils_tool.tensor2im(image, clipMod = self.clipMode)
+                        else:
+                            image_numpy = image
                         self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
                                        win=self.display_id + idx)
                         idx += 1
@@ -284,13 +303,35 @@ class Visualizer():
             losses (OrderedDict)  -- training losses stored in the format of (name, float) pairs
         """
         if not hasattr(self, 'plot_data'):
-            self.plot_data = {'X': [], 'Y': [], 'legend': list(losses.keys())}
+            self.plot_data = {'X': [], 'Y': [], 'legend': list(losses.keys())}      # legend from very beginning
         self.plot_data['X'].append(epoch + counter_ratio)
-        self.plot_data['Y'].append([losses[k] for k in self.plot_data['legend']])
+        # check if input has same dim as previosu  othervise, fill the last value to it.
+        if self.plot_data['Y']:     # if there is any data
+            if len(self.plot_data['Y'][-1]) > len(losses):     # more losses before only decrese case, increase no done yet
+                appd_Y = self.plot_data['Y'][-1]
+                lgd = self.plot_data['legend']
+                for k in losses:
+                    appd_Y[lgd.index(k)] = losses[k]        # fill the missing  Y
+            else:   # same length append directly
+                appd_Y = [losses[k] for k in self.plot_data['legend']]
+        else:
+            appd_Y = [losses[k] for k in self.plot_data['legend']]      # give full losses list
+
+        self.plot_data['Y'].append(appd_Y)   # plotdata{Y: [ [l1] [l2];  ]  } each column
         try:
+            if len(self.plot_data['legend']) < 2:
+                # X = np.expand_dims(np.array(self.plot_data['X']), axis=1)
+                X = np.array(self.plot_data['X'])
+                Y = np.array(self.plot_data['Y'])
+                if Y.size>1:
+                    Y = Y.squeeze()
+            else:
+                X = np.stack([np.array(self.plot_data['X'])] * len(self.plot_data['legend']), 1)
+                Y = np.array(self.plot_data['Y'])
             self.vis.line(
-                X=np.stack([np.array(self.plot_data['X'])] * len(self.plot_data['legend']), 1),
-                Y=np.array(self.plot_data['Y']),
+                # X=np.stack([np.array(self.plot_data['X'])] * len(self.plot_data['legend']), 1),
+                X=X,
+                Y=Y,
                 opts={
                     'title': self.name + ' loss over time',
                     'legend': self.plot_data['legend'],
@@ -310,14 +351,23 @@ class Visualizer():
         if not hasattr(self, 'evals'):
             self.evals = {'X': [], 'Y': [], 'legend': list(evals.keys())}
         self.evals['X'].append(epoch)
-        self.evals['Y'].append([evals[k] for k in self.plot_data['legend']])
+        self.evals['Y'].append([evals[k] for k in self.evals['legend']])
         try:
+            if len(self.evals['legend']) < 2:
+                # X = np.expand_dims(np.array(self.plot_data['X']), axis=1)
+                X = np.array(self.evals['X'])
+                Y = np.array(self.evals['Y'])
+                if Y.size>1:
+                    Y = Y.squeeze()
+            else:
+                X = np.stack([np.array(self.evals['X'])] * len(self.evals['legend']), 1)
+                Y = np.array(self.evals['Y'])
             self.vis.line(
-                X=np.stack([np.array(self.evals['X'])] * len(self.evals['legend']), 1),
-                Y=np.array(self.evals['Y']),
+                X=X,
+                Y=Y,
                 opts={
                     'title': self.name + ' loss over time',
-                    'legend': self.plot_data['legend'],
+                    'legend': self.evals['legend'],
                     'xlabel': 'epoch',
                     'ylabel': 'evals'},
                 win=self.display_id+3)

@@ -24,7 +24,7 @@ class Timer(object):
 
     def toc(self, average=True):
         self.diff = time.time() - self.start_time
-        if self.warm_up < 10:
+        if self.warm_up < 10:       # no verage time at this moment
             self.warm_up += 1
             return self.diff
         else:
@@ -36,3 +36,11 @@ class Timer(object):
             return self.average_time
         else:
             return self.diff
+
+    def reset(self):
+        self.total_time = 0.
+        self.calls = 0
+        self.start_time = 0.
+        self.diff = 0.
+        self.average_time = 0.
+        self.warm_up = 0

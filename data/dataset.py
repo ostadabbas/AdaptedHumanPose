@@ -14,18 +14,24 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from utils import utils_pose
 
+candidate_sets = ['Human36M', 'ScanAva', 'MPII', 'MSCOCO', 'MuCo', 'MuPoTS', 'SURREAL']
+
+for i in range(len(candidate_sets)):
+	exec('from data.' + candidate_sets[i] + '.' + candidate_sets[i] + ' import ' + candidate_sets[i])
+
 class AdpDataset_3d(Dataset):
 	'''
 	adaptation datasest to make uniform interface for 3D pose. Take in all data as db original, augment, then map to original,  normalize to HM, to tensor
 	changed to dict based feed e
 	'''
+
 	def __init__(self, db, ref_joints_name, is_train, transform, opts={}):
 		self.db = db.data
 		self.joint_num = db.joint_num
 		self.skeleton = db.skeleton
 		self.flip_pairs = db.flip_pairs
 		self.joints_have_depth = db.joints_have_depth
-		self.if_SYN = db.if_SYN     # ds determined
+		self.if_SYN = db.if_SYN  # ds determined
 		self.joints_name = db.joints_name
 		self.ref_joints_name = ref_joints_name
 		self.transform = transform
@@ -36,7 +42,6 @@ class AdpDataset_3d(Dataset):
 			self.do_augment = True
 		else:
 			self.do_augment = False
-
 
 	def __getitem__(self, index):
 		joint_num = self.joint_num
@@ -65,7 +70,8 @@ class AdpDataset_3d(Dataset):
 			scale, rot, do_flip, color_scale, do_occlusion = 1.0, 0.0, False, [1.0, 1.0, 1.0], False
 
 		# 3. crop patch from img and perform data augmentation (flip, rot, color scale, synthetic occlusion)
-		img_patch, trans = generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion, input_shape=self.opts.input_shape)
+		img_patch, trans = generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion,
+		                                        input_shape=self.opts.input_shape)
 		for i in range(img_channels):
 			img_patch[:, :, i] = np.clip(img_patch[:, :, i] * color_scale[i], 0, 255)
 
@@ -77,18 +83,19 @@ class AdpDataset_3d(Dataset):
 				joint_img[pair[0], :], joint_img[pair[1], :] = joint_img[pair[1], :], joint_img[pair[0], :].copy()
 				joint_vis[pair[0], :], joint_vis[pair[1], :] = joint_vis[pair[1], :], joint_vis[pair[0], :].copy()
 
-		for i in range(len(joint_img)): # 2d first for boneLen calculation
-			joint_img[i, 0:2] = trans_point2d(joint_img[i, 0:2], trans) # to pix:patch under input_shape size
+		for i in range(len(joint_img)):  # 2d first for boneLen calculation
+			joint_img[i, 0:2] = trans_point2d(joint_img[i, 0:2], trans)  # to pix:patch under input_shape size
 		if 'joint_cam' in data.keys() and 'y' == self.opts.if_normBone:
-			joint_2d = joint_img[:, 0:2]    # x,y pix:patch
+			joint_2d = joint_img[:, 0:2]  # x,y pix:patch
 			joint_cam = data['joint_cam']
 			# boneLen3d = data['boneLen3d']
 			boneLen2d_pix = utils_pose.get_boneLen(joint_2d, skeleton)  # rescaled bone
 			boneLen2d_mm = utils_pose.get_boneLen(joint_cam[:, :2], skeleton)
 			rt_pix2mm = boneLen2d_pix / boneLen2d_mm
-			joint_img[:,2] *= rt_pix2mm/self.opts.input_shape[0]    # z = z*2d/3d /inp_size/  normalize to image size. Note, people usually use square space, yet for tight BB, sometimes it is possible depth is larger then 2d space. so I keep sensing range x:y:z = 1:1:2 ratio to include distant z. Estimation use standard z
-		else:       # fix box norm
-			joint_img[:, 2] /= self.opts.bbox_3d_shape[0] / 2.   # to -1,1 z total 2m
+			joint_img[:, 2] *= rt_pix2mm / self.opts.input_shape[
+				0]  # z = z*2d/3d /inp_size/  normalize to image size. Note, people usually use square space, yet for tight BB, sometimes it is possible depth is larger then 2d space. so I keep sensing range x:y:z = 1:1:2 ratio to include distant z. Estimation use standard z
+		else:  # fix box norm
+			joint_img[:, 2] /= self.opts.bbox_3d_shape[0] / 2.  # to -1,1 z total 2m
 
 		for i in range(len(joint_img)):
 			joint_img[i, 2] = (joint_img[i, 2] + 1.0) / 2.  # 0~1 normalize
@@ -104,11 +111,11 @@ class AdpDataset_3d(Dataset):
 		vis = False
 		if vis:
 			filename = str(random.randrange(1, 500))
-			tmpimg = img_patch.copy().astype(np.uint8)
+			tmpimg = img_patch.copy().astype(np.uint8)      # rgb
 			tmpkps = np.zeros((3, joint_num))
 			tmpkps[:2, :] = joint_img[:, :2].transpose(1, 0)
 			tmpkps[2, :] = joint_vis[:, 0]
-			tmpimg = vis_keypoints(tmpimg, tmpkps, skeleton)
+			tmpimg = vis_keypoints(tmpimg, tmpkps, skeleton)    # rgb
 			cv2.imwrite(filename + '_gt.jpg', tmpimg)
 
 		vis = False
@@ -118,7 +125,7 @@ class AdpDataset_3d(Dataset):
 		# change coordinates to output space the hmap space (usually 64 or 32 )
 		joint_img[:, 0] = joint_img[:, 0] / self.opts.input_shape[1] * self.opts.output_shape[1]
 		joint_img[:, 1] = joint_img[:, 1] / self.opts.input_shape[0] * self.opts.output_shape[0]
-		joint_img[:, 2] = joint_img[:, 2] * self.opts.depth_dim     # 0 ~ depth_dim
+		joint_img[:, 2] = joint_img[:, 2] * self.opts.depth_dim  # 0 ~ depth_dim
 
 		# if self.is_train: # ds completeness assumption, can feed all always
 		img_patch = self.transform(img_patch)
@@ -128,20 +135,22 @@ class AdpDataset_3d(Dataset):
 			joint_vis = transform_joint_to_other_db(joint_vis, self.joints_name,
 			                                        self.ref_joints_name)  # invisible to no exist one
 
-		joint_img = joint_img.astype(np.float32)        # x,y,z, hm
+		joint_img = joint_img.astype(np.float32)  # x,y,z, hm
 		joint_vis = (joint_vis > 0).astype(np.float32)
-		joints_have_depth = np.array([joints_have_depth]).astype(np.float32) # into 1 D array
-		if_SYN = np.array([if_SYN]).astype(np.float32)    # bool -> float32
-
+		joints_have_depth = np.array([joints_have_depth]).astype(np.float32)  # into 1 D array
+		if_SYN = np.array([if_SYN]).astype(np.float32)  # bool -> float32
 
 		# return img_patch, joint_img, joint_vis, joints_have_depth # single item
-		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis':joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v':if_SYN}       # only image transformed to tensor other still np
-		# else:
-		# 	img_patch = self.transform(img_patch)   # optional data feed
-		# 	return {'img_patch':img_patch}
+		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis': joint_vis, 'if_depth_v': joints_have_depth,
+		                                  'if_SYN_v': if_SYN}  # only image transformed to tensor other still np
+
+	# else:
+	# 	img_patch = self.transform(img_patch)   # optional data feed
+	# 	return {'img_patch':img_patch}
 
 	def __len__(self):
 		return len(self.db)
+
 
 # helper functions
 def get_aug_config():
@@ -163,6 +172,7 @@ def get_aug_config():
 
 
 def generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion, input_shape=(256, 256)):
+	# return skimage RGB
 	img = cvimg.copy()
 	img_height, img_width, img_channels = img.shape
 
@@ -199,7 +209,8 @@ def generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion, input_s
 		img = img[:, ::-1, :]
 		bb_c_x = img_width - bb_c_x - 1
 
-	trans = gen_trans_from_patch_cv(bb_c_x, bb_c_y, bb_width, bb_height, input_shape[1], input_shape[0], scale, rot, inv=False) # is bb aspect needed? yes, otherwise patch distorted
+	trans = gen_trans_from_patch_cv(bb_c_x, bb_c_y, bb_width, bb_height, input_shape[1], input_shape[0], scale, rot,
+	                                inv=False)  # is bb aspect needed? yes, otherwise patch distorted
 	img_patch = cv2.warpAffine(img, trans, (int(input_shape[1]), int(input_shape[0])), flags=cv2.INTER_LINEAR)
 
 	img_patch = img_patch[:, :, ::-1].copy()
@@ -257,6 +268,7 @@ def trans_point2d(pt_2d, trans):
 	dst_pt = np.dot(trans, src_pt)
 	return dst_pt[0:2]
 
+
 def genDsLoader(opts, mode=0):
 	'''
 	generate dataset, dataLoader and iterator list (singler)
@@ -272,47 +284,50 @@ def genDsLoader(opts, mode=0):
 		for i in range(len(opts.trainset)):
 			ds = eval(opts.trainset[i])("train", opts=opts)
 			ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, True, trans, opts=opts)
-			loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus*opts.batch_size//len(opts.trainset), shuffle=True, num_workers=opts.n_thread, pin_memory=True)
-			iterator = iter(loader)
+			loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
+			                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
+			itr_loader = iter(loader)       # this is purely ScanAva, why Human36M coco error?!!
 			# to list
 			adpDs_li.append(ds_adp)
 			loader_li.append(loader)
-			iter_li.append(iterator)
+			iter_li.append(itr_loader)
 		return adpDs_li, loader_li, iter_li
 	elif 1 == mode:
 		ds = eval(opts.testset)("test", opts=opts)
 		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)
 		loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
-		                    shuffle=True, num_workers=opts.n_thread, pin_memory=True)
-		iterator = iter(loader)
-		return ds_adp, loader, iterator
+		                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
+		itr_loader = iter(loader)
+		return ds_adp, loader, itr_loader
 	elif 2 == mode:
 		ds = eval(opts.testset)("testInLoop", opts=opts)
-		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)   # few test in loop
+		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)  # few test in loop
 		loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
-		                    shuffle=True, num_workers=opts.n_thread, pin_memory=True)
-		iterator = iter(loader)
-		return ds_adp, loader, iterator
+		                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
+		itr_loader = iter(loader)
+		return ds_adp, loader, itr_loader
 	else:
 		print('no such mode defined')
 		return -1
 
-def genLoaderFromDs(ds, trans=None, opts={}):
+
+def genLoaderFromDs(ds, trans=None, opts={}, if_train=False):
 	'''
 	directly translate input ds input loader and adp_ds. Single ds input.
 	:param ds:
 	:return:
 	'''
-	if not trans:       #if not given, give tensor normalization to overide
+	if not trans:  # if not given, give tensor normalization to overide
 		trans = transforms.Compose([
 			transforms.ToTensor(),
 			transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
-	if 'test' not in ds.data_split:
+	if 'test' in ds.data_split:
 		is_train = False
 	else:
 		is_train = True
 	ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, is_train, trans, opts=opts)
-	loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size, shuffle=True, num_workers=opts.n_thread, pin_memory=True)
+	loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size, shuffle=if_train, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
 	iterator = iter(loader)
 
 	return ds_adp, loader, iterator
+

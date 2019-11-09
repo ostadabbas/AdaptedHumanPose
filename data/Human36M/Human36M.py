@@ -13,13 +13,9 @@ import utils.utils_tool as ut_t
 from collections import OrderedDict
 from pathlib import Path
 # from Human36M_eval import calculate_score
-
+from tqdm import tqdm
 
 class Human36M:
-	# skeleton_cfg = {
-	# 	'y': ((0, 8), (8, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6)),
-	# 	'n': ((0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6))
-	# }
 	action_name = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases', 'Sitting','SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog', 'WalkTogether']
 	joint_num = 17
 	joint_num_ori = 17      # truth labeled jts,
@@ -36,15 +32,12 @@ class Human36M:
 		('Pelvis', 'R_Hip'), ('R_Hip', 'R_Knee'), ('R_Knee', 'R_Ankle'),
 		('Pelvis', 'L_Hip'), ('L_Hip', 'L_Knee'), ('L_Knee', 'L_Ankle'),
 	)   # for original preferred
-	# eval_joint_cfg = {
-	# 	'y': (0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16),
-	# 	'n': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+	# boneLen2Dave_mm_cfg = {
+	# 	'y': 3700,
+	# 	'n': 3900
 	# }
-	boneLen2Dave_mm_cfg = {
-		'y': 3700,
-		'n': 3900
-	}
-	# flip_pairs = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
+	boneLen2d_av_dict =	OrderedDict([('09', 3763.0474356854743), ('11', 3643.7693038068687)])
+	boneLen2d_av_mm = sum(boneLen2d_av_dict.values()) / len(boneLen2d_av_dict)  # get average value of all bones
 	# get idx
 	flip_pairs = nameToIdx(flip_pairs_name, joints_name)
 	skeleton = nameToIdx(skels_name, joints_name)
@@ -62,16 +55,7 @@ class Human36M:
 		# self.joint_num = 18  # repo original dataset:17, but manually added 'Thorax'
 		# self.joints_name_bk = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Neck', 'Nose', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'Thorax')  # Neck -> Thorax,  Nose to Neck (here is upper neck)  , no need for the final thorax input, --repoOri
 
-		# if 'y' == opts.cmJoints:
-		# 	self.skeleton = (
-		# 	(0, 8), (8, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6)) # get rid of 2 middle bones
-		# 	self.eval_joint = (0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16) # not torso and neck
-		# 	self.boneLen2Dave_mm = 3700
-		# else:
-		# 	self.skeleton = ((0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2), 	(2, 3), (0, 4), (4, 5), (5, 6))
-		# 	self.eval_joint = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)  # except Thorax,
-		# 	self.boneLen2Dave_mm = 3800
-		self.boneLen2Dave_mm = self.boneLen2Dave_mm_cfg[opts.if_cmJoints]
+		# self.boneLen2d_av_mm = self.boneLen2Dave_mm_cfg[opts.if_cmJoints]
 		self.joints_have_depth = True
 		self.action_name = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases',
 		                    'Sitting', 'SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog',
@@ -109,11 +93,30 @@ class Human36M:
 
 		return subject
 
-	# def add_thorax(self, joint_coord):
-	# 	thorax = (joint_coord[self.lshoulder_idx, :] + joint_coord[self.rshoulder_idx, :]) * 0.5
-	# 	thorax = thorax.reshape((1, 3))
-	# 	joint_coord = np.concatenate((joint_coord, thorax), axis=0)  # add additional joint
-	# 	return joint_coord
+	def getBoneLen_av(self, dim=2):
+		'''
+		get average bone length of each subject. Default is 2D mm length
+		:param dim:
+		:return:    dict of average boneLen
+		'''
+		boneSum_dict = OrderedDict()    # keep sum of each subject
+		n_dict = OrderedDict()
+		for anno in self.data:
+			img_path = anno['img_path'] # eg: s_01_act_02_subact_01_ca_01/s_01_act_02_subact_01_ca_01_000001.jpg
+			joints_cam = anno['joint_cam']
+
+			id_subjStr = img_path.split('images')[-1][3:5]  # /s_01... so from 3rd
+			boneLen = ut_p.get_boneLen(joints_cam[:, :dim], self.skeleton)
+			if id_subjStr in boneSum_dict:
+				boneSum_dict[id_subjStr] += boneLen
+				n_dict[id_subjStr] += 1
+			else:   # first
+				boneSum_dict[id_subjStr] = boneLen
+				n_dict[id_subjStr] = 1
+
+		for k in boneSum_dict:
+			boneSum_dict[k] = float(boneSum_dict[k])/ n_dict[k]
+		return boneSum_dict
 
 	def load_data(self):
 		subject_list = self.get_subject()  # 1,3,4,5,6 or 9,11
@@ -124,7 +127,7 @@ class Human36M:
 		for subject in subject_list:
 			with open(osp.join(self.annot_path, 'Human36M_subject' + str(subject) + '.json'), 'r') as f:
 				annot = json.load(f)
-			if len(db.dataset) == 0:
+			if len(db.dataset) == 0:        # 1st entry
 				for k, v in annot.items():
 					db.dataset[k] = v  # k：images, categories,  annotations
 			else:
@@ -144,7 +147,7 @@ class Human36M:
 			print("Get bounding box and root from groundtruth")
 
 		data = []
-		for aid in db.anns.keys():  # loop each annotations
+		for aid in tqdm(db.anns.keys(), 'H36M loading'):  # loop each annotations
 			ann = db.anns[aid]
 
 			image_id = ann['image_id']
@@ -202,25 +205,29 @@ class Human36M:
 				'joint_img': joint_img,  # [org_img_x, org_img_y, depth - root_depth]
 				'joint_cam': joint_cam,  # [X, Y, Z] in camera coordinate
 				'joint_vis': joint_vis,
-				'root_cam': root_cam,  # [X, Y, Z] in camera coordinate
+				'root_cam': root_cam,  # pelvis [X, Y, Z] in camera coordinate
 				'f': f,
 				'c': c})
 		return data
 
-	def evaluate(self, preds, jt_adj=None, logger_test=None, if_svVis=False, if_svEval=False):
+	def evaluate(self, preds, **kwargs):
 		'''
-		rewrite this one. preds follow opts.ref_joint,  gt transfer to ref_joints, taken with ref_evals_idx.
-		:param preds:
-		:param jt_adj:
+		rewrite this one. preds follow opts.ref_joint,  gt transfer to ref_joints, taken with ref_evals_idx. Only testset will calculate the MPJPE PA to prevent the SVD diverging during training.
+		:param preds: xyz HM
+		:param kwargs:  jt_adj, logger_test, if_svEval,  if_svVis
 		:return:
 		'''
+		jt_adj = kwargs.get('jt_adj', None)
+		logger_test = kwargs.get('logger_test', None)
+		if_svEval = kwargs.get('if_svEval', False)
+		if_svVis  = kwargs.get('if_svVis', False)
 
 		print('Evaluation start...')
 		gts = self.data
 		assert (len(preds) <= len(gts))     # can be smaller
 		# gts = gts[:len(preds)]  # take part of it
 		# joint_num = self.joint_num
-		joint_num = self.opts.ref_joint_num
+		joint_num = self.opts.ref_joints_num
 		sample_num = len(preds)  # use predict length
 		pred_save = []
 		diff_sum = np.zeros(3)      # keep x,y,z difference
@@ -233,12 +240,12 @@ class Human36M:
 		p2_error_action = [[] for _ in range(len(action_name))]  # MPJPE error for each action
 
 		# z metric only
-		z1_error = np.zeros((len(preds), joint_num, 3))  # protocol #1 error (PA MPJPE)
-		z2_error = np.zeros((len(preds), joint_num, 3))  # protocol #2 error (MPJPE)
+		z1_error = np.zeros((len(preds), joint_num))  # protocol #1 error (PA MPJPE)
+		z2_error = np.zeros((len(preds), joint_num))  # protocol #2 error (MPJPE)
 		z1_error_action = [[] for _ in range(len(action_name))]  # PA MPJPE for each action
 		z2_error_action = [[] for _ in range(len(action_name))]  # MPJPE error for each action
 
-		for i in range(sample_num):
+		for i in tqdm(range(sample_num), desc='H36M eval...'):
 			gt = gts[i]
 			image_id = gt['img_id']
 			f = gt['f']
@@ -251,14 +258,14 @@ class Human36M:
 
 			if self.joints_name != self.opts.ref_joints_name:
 				gt_3d_kpt = ut_p.transform_joint_to_other_db(gt_3d_kpt, self.joints_name, self.opts.ref_joints_name)
-				gt_vis = ut_p.transform_joint_to_other_db(gt_vis, self.joints_name, self.opts.ref_joints_name)
+				# gt_vis = ut_p.transform_joint_to_other_db(gt_vis, self.joints_name, self.opts.ref_joints_name)
 
 			# restore coordinates to original space
 			pre_2d_kpt = preds[i].copy()  # grid:Hm
 			# pre_2d_kpt[:,0], pre_2d_kpt[:,1], pre_2d_kpt[:,2] = warp_coord_to_original(pre_2d_kpt, bbox, gt_3d_root)
 			boneLen2d_mm = get_boneLen(gt_3d_kpt[:, :2], self.skeleton) # individual gt
 			if 'y' == self.opts.if_aveBoneRec:
-				boneRec = self.boneLen2Dave_mm
+				boneRec = self.boneLen2d_av_mm
 			else:
 				boneRec = boneLen2d_mm
 			pre_2d_kpt[:, 0], pre_2d_kpt[:, 1], pre_2d_kpt[:, 2] = warp_coord_to_ori(pre_2d_kpt, bbox, gt_3d_root, boneLen2d_mm=boneRec, opts=self.opts, skel=self.opts.ref_skels_idx)  #  x,y pix:cam, z mm:cam
@@ -279,7 +286,7 @@ class Human36M:
 			pred_3d_kpt[:, 0], pred_3d_kpt[:, 1], pred_3d_kpt[:, 2] = pixel2cam(pre_2d_kpt, f, c)  # proj back x, y, z [mm: cam]
 			# adjust the pelvis position,
 			if jt_adj:
-				pred_3d_kpt[self.ref_root_idx] += np.array(jt_adj)  # how much pred over gt add to get true pelvis position
+				pred_3d_kpt[self.opts.ref_root_idx] += np.array(jt_adj)  # how much pred over gt add to get true pelvis position
 			# root joint alignment
 			pred_3d_kpt = pred_3d_kpt - pred_3d_kpt[self.opts.ref_root_idx]  # - adj* boneLen
 			gt_3d_kpt = gt_3d_kpt - gt_3d_kpt[self.opts.ref_root_idx]
@@ -288,7 +295,10 @@ class Human36M:
 			diff_av = np.delete(diff_pred2gt, self.opts.ref_root_idx, axis=0).mean(axis=0)  # not root average           # all joints diff
 			diff_sum += diff_av     # all jt diff 3
 			# rigid alignment for PA MPJPE (protocol #1)
-			pred_3d_kpt_align = rigid_align(pred_3d_kpt, gt_3d_kpt)
+			if 'test' == self.data_split:  # only final test use the alignment to prevent the SVD converging error
+				pred_3d_kpt_align = rigid_align(pred_3d_kpt, gt_3d_kpt)
+			else:
+				pred_3d_kpt_align = -np.ones_like(pred_3d_kpt)
 
 			if if_svVis and 0 == i % (self.opts.svVis_step*self.opts.batch_size):   # rooted 3d
 				ut_t.save_3d_tg3d(pred_3d_kpt_align, self.opts.vis_test_dir, self.opts.ref_skels_idx, idx=i, suffix='root')
@@ -304,12 +314,13 @@ class Human36M:
 
 			pred_3d_kpt = np.take(pred_3d_kpt, self.opts.ref_evals_idx, axis=0)
 			pred_3d_kpt_align = np.take(pred_3d_kpt_align, self.opts.ref_evals_idx, axis=0)  # take elements out to eval
-			gt_3d_kpt = np.take(gt_3d_kpt, self.opts.ref_root_idx)
+			gt_3d_kpt = np.take(gt_3d_kpt, self.opts.ref_evals_idx, axis=0)
 
 			# result and scores
 			p1_error[i] = np.power(pred_3d_kpt_align - gt_3d_kpt, 2)  # PA MPJPE (protocol #1) pow2  img*jt*3
+			z1_error[i] = np.abs(pred_3d_kpt_align[:, 2] - gt_3d_kpt[:, 2])  # n_jt : abs
+
 			p2_error[i] = np.power(pred_3d_kpt - gt_3d_kpt, 2)  # MPJPE (protocol #2) n_smpl* n_jt * 3 square
-			z1_error[i] = np.abs(pred_3d_kpt_align[:,2] - gt_3d_kpt[:, 2])  # n_jt : abs
 			z2_error[i] = np.abs(pred_3d_kpt[:,2] - gt_3d_kpt[:, 2])  # n_jt
 
 			action_idx = int(img_path[img_path.find('act') + 4:img_path.find('act') + 6]) - 2
@@ -320,9 +331,13 @@ class Human36M:
 
 		#reduce to metrics  into dict
 		diff_av = diff_sum / sample_num
-		p1_err_av = np.mean(np.power(np.sum(p1_error, axis=2), 0.5))  # all samp * jt
+		if 'test' == self.data_split:
+			p1_err_av = np.mean(np.power(np.sum(p1_error, axis=2), 0.5))  # all samp * jt
+			z1_err_av = np.mean(z1_error)
+		else:       # not final, use dummy one
+			p1_err_av = -1
+			z1_err_av = -1
 		p2_err_av = np.mean(np.power(np.sum(p2_error, axis=2), 0.5))
-		z1_err_av = np.mean(z1_error)
 		z2_err_av = np.mean(z2_error)
 
 		p1_err_action_av = []
@@ -330,20 +345,29 @@ class Human36M:
 		z1_err_action_av = []
 		z2_err_action_av = []
 
-		for i in len(p1_error_action):  # n_act * n_subj * n_jt * 3
-			err = np.array(p1_error_action[i])
-			err = np.mean(np.power(np.sum(err, axis=2), 0.5))
-			p1_err_action_av.append(err)
-			err = np.array(p2_error_action[i])
-			err = np.mean(np.power(np.sum(err, axis=2), 0.5))
-			p2_err_action_av.append(err)
+		for i in range(len(p1_error_action)):  # n_act * n_subj * n_jt * 3
+			if p1_error_action[i]:  # if there is value here
+				err = np.array(p1_error_action[i])
+				err = np.mean(np.power(np.sum(err, axis=2), 0.5))
+				p1_err_action_av.append(err)
+				err = np.array(p2_error_action[i])
+				err = np.mean(np.power(np.sum(err, axis=2), 0.5))
+				p2_err_action_av.append(err)
 
-			err = np.array(z1_error_action[i])
-			err = np.mean(err)
-			z1_err_action_av.append(err)
-			err = np.array(z2_error_action[i])
-			err = np.mean(err)
-			z2_err_action_av.append(err)
+				err = np.array(z1_error_action[i])
+				err = np.mean(err)
+				z1_err_action_av.append(err)
+				err = np.array(z2_error_action[i])
+				err = np.mean(err)
+				z2_err_action_av.append(err)
+			else:       # if empty
+				p1_err_action_av.append(-1)
+				p2_err_action_av.append(-1)
+				z1_err_action_av.append(-1)
+				z2_err_action_av.append(-1)
+			if not 'test' == self.data_split:   #   clean up the non-final version
+				p1_err_action_av[-1] = -1
+				z1_err_action_av[-1] = -1
 
 		# p1 aligned (PA MPJPE), p2 not aligned (MPJPE) , action is list
 		err_dict = {
@@ -361,14 +385,16 @@ class Human36M:
 
 		# prepare saving
 		rst_dict = {'pred_rst': pred_save, 'ref_joints_name': self.opts.ref_joints_name, 'jt_adj': jt_adj}  # full joints with only adj
+		# name head
+		pth_head = '_'.join([self.opts.nmTest, self.data_split, 'proto' + str(self.protocol)])
 		if if_svEval:
-			rst_pth = osp.join(self.opts.rst_dir,'_'.join('Human36M', self.data_split, 'proto'+str(self.protocol), 'rst.json'))  # Human36M_testInLoop_proto2_rst.json
+			rst_pth = osp.join(self.opts.rst_dir,'_'.join([pth_head, 'rst.json']))  #  Human36M_testInLoop_proto2_rst.json
 			with open(rst_pth, 'w') as f:
 				# json.dump(pred_save, f)
 				json.dump(rst_dict, f)      # result with also meta
 			print("Test result is saved at " + rst_pth)
 			# save eval result
-			eval_pth = osp.join(self.opts.rst_dir, '_'.join('Human36M', self.data_split, 'proto'+str(self.protocol), str(len(self.opts.ref_evals_name)), 'eval.npy')) # pickled npy
+			eval_pth = osp.join(self.opts.rst_dir, '_'.join([pth_head, 'eval.npy'])) # pickled npy
 			# Human36M_testInLoop_proto2_17_eval.json
 			np.save(eval_pth, err_dict) # pickled dictionary
 
@@ -378,36 +404,22 @@ class Human36M:
 		else:
 			prt_func = print
 		# total
-		prt_func('under protocol {:d} with {:d} eval joints'.format(self.protocol, len(self.opts.ref_evals_name)))
-		prt_func('MPJPE PA {:.1f}'.format(p1_err_av))
-		prt_func('MPJPE {:.1f}'.format(p2_err_av))
-		prt_func('z PA {:.1f}'.format(z1_err_av))
-		prt_func('z {:.1f}'.format(z2_err_av))
+		prt_func('eval on {}'.format(pth_head))     # joints protocol all included
+		nm_li = ['MPJPE PA', 'MPJPE', 'z PA', 'z']
+		metric_li = [p1_err_av, p2_err_av, z1_err_av, z2_err_av]
+		row_format = "{:>8}" + "{:>15}" * len(nm_li)
+		prt_func(row_format.format("", *nm_li))
+		row_format = "{:>8}" + "{:>15.1f}" * len(nm_li)
+		prt_func(row_format.format("total", *metric_li))
 		# action based
-		row_format = "{:>8}" + "{:>15}" * len(action_name)
+		row_format = "{:>8}" + "{:>15.14}" * len(action_name)
 		prt_func(row_format.format("", *action_name))
 		row_format = "{:>8}" + "{:>15.1f}" * len(action_name)
-		nm_li = ['MPJPE PA', 'MPJPE', 'z PA', 'z']
+
 		data_li = [p1_err_action_av, p2_err_action_av, z1_err_action_av, z2_err_action_av]
 		for nm, row in zip(nm_li, data_li):
 			prt_func(row_format.format(nm, *row))
-		prt_func('eval diff is', diff_av)
+		prt_func('eval diff is' + np.array2string(diff_av))
+
 
 		return err_dict
-
-
-
-
-
-
-
-
-
-		# calculate_score(output_path, self.annot_path, self.get_subject())       # comment it later
-		# test logger, print result here,  log diff value
-
-		# init 0s loop through the gt , with eval_idxs to take (axis 0) for gt,
-		# loop with preds, (can <= len(gt),  according to file name, add to categories
-		# give the result here
-		# print("average difference rt/boneLen is", diff_arr.mean(axis=0))
-		# return the dict result

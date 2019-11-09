@@ -7,11 +7,11 @@ class ResNetBackbone(nn.Module):
 
     def __init__(self, resnet_type):
 	
-        resnet_spec = {18: (BasicBlock, [2, 2, 2, 2], [64, 64, 128, 256, 512], 'resnet18'),
-		       34: (BasicBlock, [3, 4, 6, 3], [64, 64, 128, 256, 512], 'resnet34'),
-		       50: (Bottleneck, [3, 4, 6, 3], [64, 256, 512, 1024, 2048], 'resnet50'),
-		       101: (Bottleneck, [3, 4, 23, 3], [64, 256, 512, 1024, 2048], 'resnet101'),
-		       152: (Bottleneck, [3, 8, 36, 3], [64, 256, 512, 1024, 2048], 'resnet152')}
+        resnet_spec = {'res18': (BasicBlock, [2, 2, 2, 2], [64, 64, 128, 256, 512], 'resnet18'),
+		       'res34': (BasicBlock, [3, 4, 6, 3], [64, 64, 128, 256, 512], 'resnet34'),
+		       'res50': (Bottleneck, [3, 4, 6, 3], [64, 256, 512, 1024, 2048], 'resnet50'),
+		       'res101': (Bottleneck, [3, 4, 23, 3], [64, 256, 512, 1024, 2048], 'resnet101'),
+		       'res152': (Bottleneck, [3, 8, 36, 3], [64, 256, 512, 1024, 2048], 'resnet152')}
         block, layers, channels, name = resnet_spec[resnet_type]
         
         self.name = name

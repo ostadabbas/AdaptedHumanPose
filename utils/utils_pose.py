@@ -85,7 +85,7 @@ def warp_coord_to_ori(joint_out, bbox, center_cam, boneLen2d_mm=3800, opts={}, s
 	x = joint_out[:, 0] / opts.output_shape[1] * bbox[2] + bbox[0]
 	y = joint_out[:, 1] / opts.output_shape[0] * bbox[3] + bbox[1]
 	z_unit = (joint_out[:, 2] / opts.depth_dim * 2. - 1.)  # -1 ~ 1  could be around 0.5 if square
-	if 'y' == opts.if_normBone:
+	if 'y' == opts.if_normBone and skel:
 		boneLen2d_pix = get_boneLen(joint_out[:, 0:2], skel)  # skel is usaully opts.ref_skel, in case we would like to recover to ds order,  in hm
 		z = z_unit * opts.output_shape[0] / boneLen2d_pix * boneLen2d_mm + center_cam[2]
 	else:

@@ -35,7 +35,7 @@ class HeadNet(nn.Module):
 		self.deconv_layers = self._make_deconv_layer(3)
 		self.final_layer = nn.Conv2d(
 			in_channels=self.inplanes,
-			out_channels=opts.joint_num * opts.depth_dim,
+			out_channels=opts.ref_joints_num * opts.depth_dim,
 			kernel_size=1,
 			stride=1,
 			padding=0
@@ -97,16 +97,19 @@ class TaskGenNet(BaseModel):
 		self.model_names = ['G', 'T']
 		self.loss_names = ['T']
 		self.visuals = ['G_fts']  # only show G features
-		self.joint_num = opts.joint_num
+		self.joint_num = opts.ref_joints_num
 		self.if_train = if_train   # when not train, no optimizer, not looking for target
 		self.if_z = 0.      # if supervise z, initially 0, at epoch to set
+		self.loss_T = torch.tensor([-1.])        # initialize  in case no needed to indicate not training any longer.
+		self.loss_G_GAN = torch.tensor([-1.])
+		self.loss_D = torch.tensor([-1.])
 
 		if 'res' in opts.net_BB:
 			self.netG = init_net(ResNetBackbone(opts.net_BB), init_type=opts.init_type, gpu_ids=self.gpu_ids)
 			self.inplanes = 2048  # input planes
 		else:
-			self.netG = None  # todo --- fill if other net needs
-			self.inplanes = 256  # todo --
+			self.netG = None  #
+			self.inplanes = 256  #
 		self.netT = init_net(HeadNet(opts), init_type=opts.init_type, gpu_ids=self.gpu_ids)
 
 		self.models.append(self.netG)       # always put D later
@@ -115,28 +118,33 @@ class TaskGenNet(BaseModel):
 		if 'adam' == opts.optimizer:
 			optimT = torch.optim.Adam
 		elif 'nadam' == opts.optimizer:
-			optimT = Nadam
-
+			optimT = Nadam      # default 2e-3  0.9, 0.999, here adam is 1e-3
 
 		if len(opts.trainset) > 1 and opts.lmd_D >0 :
 			self.if_D = True
-
+		else:
+			self.if_D = False
 
 		if if_train:
 			# criterion, T use abs directly
 			# optimizer
-			self.optimizer_G = optimT(self.netG.parameters(), lr=opt.lr, betas=(0.5, 0.999))
-			self.optimizer_T = optimT(self.netG.parameters(), lr=opt.lr, betas=(0.5, 0.999))
+
+			if optimT == Nadam:
+				betas = (0.9, 0.999)        # for nadam default
+			else:
+				betas = (0.5, 0.999)        # for original default
+			self.optimizer_G = optimT(self.netG.parameters(), lr=opts.lr, betas=betas)
+			self.optimizer_T = optimT(self.netT.parameters(), lr=opts.lr, betas=betas)
 			self.optimizers.append(self.optimizer_G)
 			self.optimizers.append(self.optimizer_T)
 
 			if self.if_D:  # updating by D option
 				self.loss_names += ['G_GAN', 'D']
-				self.netD = define_D(self.inplanes, 64, 'n_layers', n_layers=opts.n_layers_D, init_type=opts.init_type, gpu_ids=opt.gpu_ids)
+				self.netD = define_D(self.inplanes, 64, 'n_layers', n_layers_D=opts.n_layers_D, init_type=opts.init_type, gpu_ids=opts.gpu_ids)
 				self.models.append(self.netD)
 				# self.criterionGAN = GANLoss(opts.gan_mode).to(self.device)
 				self.criterionGAN = GANloss_vec(opts.gan_mode).to(self.device)
-				self.optimizer_D = optimT(self.netG.parameters(), lr=opt.lr, betas=(0.5, 0.999))
+				self.optimizer_D = optimT(self.netD.parameters(), lr=opts.lr, betas=betas)
 				self.optimizers.append(self.optimizer_D)
 			# auto shedulers
 			self.gen_auto_schedulers()
@@ -146,7 +154,10 @@ class TaskGenNet(BaseModel):
 		load the pretrain Bb
 		:return:
 		'''
-		self.netG.loadPreTrain(str(self.device))       # load public well pretrained one
+		netG = self.netG    # ref to it
+		if isinstance(netG, torch.nn.DataParallel):
+			netG = netG.module
+		netG.init_weights()       # load public well pretrained one, dataParalel no load pretrain
 
 	def fix_G(self):
 		'''
@@ -156,6 +167,9 @@ class TaskGenNet(BaseModel):
 		self.if_fixG = True
 		self.if_D =False
 		self.set_requires_grad(self.netG, requires_grad=False)
+		# get rid of the loss name to get rid of the requirement
+
+		print('net G fixed')
 
 	def forward(self):
 		'''
@@ -171,7 +185,7 @@ class TaskGenNet(BaseModel):
 		forward D , D loss then back, optD step
 		:return:
 		'''
-		pred_D = self.netD(self.G_fts.detch())  # all prediction rst
+		pred_D = self.netD(self.G_fts.detach())  # all prediction rst
 		self.loss_D = self.criterionGAN(pred_D, self.tgt_if_SYNs) * self.opts.lmd_D
 		self.loss_D.backward()
 
@@ -181,7 +195,7 @@ class TaskGenNet(BaseModel):
 		optimizer_G.zero_grad(), G_loss back, optT step, if not fix, optG,T step
 		:return:
 		'''
-		self.loss_T_tot = torch.tensor([0.]) # zero loss
+		self.loss_T_tot = torch.tensor([0.]).to(self.device) # zero loss
 		if self.if_D:
 			pred_D = self.netD(self.G_fts.detach())  # avoid affecting G
 			self.loss_G_GAN = self.criterionGAN(pred_D, 1 - self.tgt_if_SYNs) * self.opts.lmd_D
@@ -189,8 +203,15 @@ class TaskGenNet(BaseModel):
 
 		# task loss, back
 		loss_coord = torch.abs(self.coord - self.tgt_coord) * self.tgt_vis  # vis based loss
+		# if_dbg = False
+		# if if_dbg:
+		# 	tgt_np = self.tgt_coord.cpu().detach().numpy()
+		# 	tgt_min = tgt_np[:,:,:2].min(axis=[1,2])
+		# 	print(tgt_min<0)        # if x, y there is smaller than 0
+		# 	print(self.tgt_vis)
+
 		loss_coord = (loss_coord[:,:,0] + loss_coord[:,:,1] + loss_coord[:,:,2] * self.tgt_have_depth * self.if_z) /3.      # get rid of z part
-		self.loss_T = loss_coord
+		self.loss_T = loss_coord.mean()
 		self.loss_T_tot += self.loss_T
 		self.loss_T_tot.backward()
 
@@ -203,24 +224,20 @@ class TaskGenNet(BaseModel):
 		:return:
 		'''
 		self.img = input['img_patch']   # when used for wild image only input
-		if self.if_train:
-			if not target:
-				print('error, no target set as input')
-			else:
-				self.tgt_coord = target['joint_hm']
-				self.tgt_vis = target['vis']
-				self.tgt_have_depth = target['if_depth_v']
-				self.tgt_if_SYNs = target['if_SYN_v']
+		if self.if_train and target:    # train model there is target , then set
+			self.tgt_coord = target['joint_hm'].to(self.device)
+			self.tgt_vis = target['vis'].to(self.device)
+			self.tgt_have_depth = target['if_depth_v'].to(self.device)
+			self.tgt_if_SYNs = target['if_SYN_v'].to(self.device)
 
 	def optimize_parameters(self):
 		self.forward()
-		if 'y' == self.if_D:
+		if self.if_D:
 			self.set_requires_grad(self.netD, True)  # enable backprop for D
 			self.optimizer_D.zero_grad()  # set D's gradients to zero
 			self.backward_D()  # calculate gradients for D
 			self.optimizer_D.step()  # update D's weights
-		# update G
-		self.set_requires_grad(self.netD, False)  # D requires no gradients when optimizing G
+			self.set_requires_grad(self.netD, False)  # D requires no gradients when optimizing G
 		self.optimizer_G.zero_grad()  # set G's gradients to zero
 		self.optimizer_T.zero_grad()
 		self.backward_G()  # T, G both
