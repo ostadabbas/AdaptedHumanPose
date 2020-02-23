@@ -191,7 +191,7 @@ else
     out_prefix = 'only_matched_annotations_';
 end
 
-save([results_output_path filesep out_prefix 'multiperson_3dhp_evaluation.mat'], 'sequencewise_per_joint_error' );
+save([results_output_path filesep out_prefix 'multiperson_3dhp_evaluation.mat'], 'sequencewise_per_joint_error' ); % save erro
 
 [seq_table] = mpii_evaluate_multiperson_errors(sequencewise_per_joint_error );%fullfile(net_base, net_path{n,1}));
 out_file = [results_output_path filesep out_prefix 'multiperson_3dhp_evaluation'];

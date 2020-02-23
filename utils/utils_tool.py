@@ -12,8 +12,68 @@ from . import vis
 import cv2
 import matplotlib.pyplot as plt
 from skimage import io, transform, img_as_ubyte
+#
+# def getPCK_single(p1_err,  head_v, dim=3, ref=None):
+# 	'''
+# 	take the single error array p1_err in square for this implementation. return the PCK_v,
+# 	:param p1_err:  N * n_jt * 3  power2
+# 	:return:
+# 	'''
+# 	if not p1_err:
+# 		print('warning, empty input')
+# 		return -1
+# 	# default arguments
+# 	if not ref:
+# 		if dim==3:
+# 			ref = np.array(range(0, 150, 5))
+# 		elif dim == 2:
+# 			ref = np.array(range(0,1,0.05))
+# 	else:
+# 		# 3d PCK_vec
+# 		pck_v = []
+# 		for th in ref:
+# 			n_valid = np.sum(np.power(np.sum(p1_err[:dim], axis=2), 0.5)<th)
+# 			pck_v.append(float(n_valid)/np.prod(p1_err.size.shape[:2]))
+# 		AUC = sum(pck_v)/len(pck_v)
+#
+# 		return {'pck_v':pck_v, 'AUC':AUC}
+#
+# def getPCK(p1_err, head_v, dim=3, ref=None):
+# 	'''
+# 	get PCK result, give PCK3d_v  PCK2d_v, AUC_2d, AUC_3d
+# 	:param p1_err:
+# 	:return:
+# 	'''
+# 	if not p1_err:
+# 		print('warining, no p1_err input')
+# 		return -1
+# 	if not ref:
+# 		if dim==3:
+# 			ref = np.array(range(0, 150, 5))
+# 		elif dim == 2:
+# 			ref = np.array(range(0,1,0.05))
+# 	if type(p1_err) is list:
+# 		rst = []
+# 		for err_act in p1_err:
+# 			rst.append(getPCK_single(err_act, dim=dim, ref=ref))
+# 	else:
+# 		rst = getPCK_single(p1_err)
+# 	return rst
 
-
+def getPCK_3d(p1_err, ref=tuple(range(0,155,5))):
+	'''
+	single N x n_jt  distance vec
+	:param p1_err:
+	:param ref:
+	:return:
+	'''
+	# 3d PCK_vec
+	pck_v = []
+	for th in ref:
+		n_valid = np.sum(p1_err<th)
+		pck_v.append(float(n_valid)/p1_err.size)
+	auc = sum(pck_v)/len(pck_v)
+	return pck_v, auc
 
 def getNumInStr(str_in, tp=int):
 	'''
@@ -104,7 +164,7 @@ def save_image(image_numpy, image_path):
 	image_pil.save(image_path)
 
 
-def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None, rg=None):
+def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None, rg=None, fig_id = 1):
 	'''
 	simplified version with less positional input comparing to vis pack.  Just show the skeleton, if non visibility infor, show full skeleton. Plot in plt, and save it.
 	:param kpt_3d:  n_jt * 3
@@ -115,7 +175,7 @@ def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None, rg=None):
 	:return:
 	'''
 
-	fig = plt.figure()
+	fig = plt.figure(fig_id)
 	ax = fig.add_subplot(111, projection='3d')
 	# Convert from plt 0-1 RGBA colors to 0-255 BGR colors for opencv.
 	cmap = plt.get_cmap('rainbow')
@@ -159,6 +219,63 @@ def vis_3d(kpt_3d, skel, kpt_3d_vis=None, sv_pth=None, rg=None):
 		fig.savefig(sv_pth, bbox_inches='tight')
 	plt.close(fig)  # clean after use
 
+def vis_3d_cp(kpt_3d_li, skel, kpt_3d_vis=None, sv_pth=None, rg=None, fig_id = 1):
+	'''
+	visulize the 3d plot in one figure for compare purpose, with differed color
+	:param kpt_3d:  n_jt * 3
+	:param skel:
+	:param kpt_3d_vis:
+	:param sv_pth: if not given then show the 3d figure.
+	:param rg: the range for x, y and z in  ( (xs, xe), (ys, ye), (zs, ze)) format
+	:return:
+	'''
+	if isinstance(kpt_3d_li, np.ndarray):
+		kpt_3d_li =[ kpt_3d_li] # to list
+	N = len(kpt_3d_li)
+	fig = plt.figure(fig_id)
+	ax = fig.add_subplot(111, projection='3d')
+	# Convert from plt 0-1 RGBA colors to 0-255 BGR colors for opencv.
+	cmap = plt.get_cmap('rainbow')
+	colors = [cmap(i) for i in np.linspace(0, 1, N)]
+	colors = [np.array((c[2], c[1], c[0])) for c in colors]
+	if not kpt_3d_vis:
+		kpt_3d_vis = np.ones((len(kpt_3d_li[0]), 1))  # all visible
+
+	for i, kpt_3d in enumerate(kpt_3d_li):
+		for l in range(len(skel)):
+			i1 = skel[l][0]
+			i2 = skel[l][1]
+			x = np.array([kpt_3d[i1, 0], kpt_3d[i2, 0]])
+			y = np.array([kpt_3d[i1, 1], kpt_3d[i2, 1]])
+			z = np.array([kpt_3d[i1, 2], kpt_3d[i2, 2]])
+
+			if kpt_3d_vis[i1, 0] > 0 and kpt_3d_vis[i2, 0] > 0:
+				ax.plot(x, z, -y, c=colors[i], linewidth=2)
+			if kpt_3d_vis[i1, 0] > 0:
+				ax.scatter(kpt_3d[i1, 0], kpt_3d[i1, 2], -kpt_3d[i1, 1], c=[colors[i]], marker='o')
+			if kpt_3d_vis[i2, 0] > 0:
+				ax.scatter(kpt_3d[i2, 0], kpt_3d[i2, 2], -kpt_3d[i2, 1], c=[colors[i]], marker='o')
+
+	ax.set_title('3D vis')
+	ax.set_xlabel('X Label')
+	ax.set_ylabel('Z Label')
+	ax.set_zlabel('Y Label')
+
+	if rg:
+		ax.set_xlim(rg[0])      # x
+		ax.set_zlim([-e for e in rg[1]][::-1])   # - y
+		ax.set_ylim(rg[2])
+
+	# ax.set_xlim([0,cfg.input_shape[1]])
+	# ax.set_ylim([0,1])
+	# ax.set_zlim([-cfg.input_shape[0],0])
+	# ax.legend()       # no legend
+	if not sv_pth:  # no path given, show image, otherwise save
+		plt.show()
+	else:
+		fig.savefig(sv_pth, bbox_inches='tight')
+	plt.close(fig)  # clean after use
+
 def ts2cv2(img_ts, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
 	'''
 	recover the image from tensor to uint8 cv2 fromat with mean and std. Suppose original in 0~1 format. RGB-BGR, cyx -> yxc
@@ -177,6 +294,25 @@ def ts2cv2(img_ts, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
 	tmpimg = np.transpose(tmpimg, (1, 2, 0)).copy()  # x, y , c
 	return tmpimg
 
+def showJoints(img, joint_img, svPth = None):
+	'''
+	label all joints to help figure out joint name
+	:param img:
+	:param joint_img: n_jt *3 or n_jt *2
+	:return:
+	'''
+	h, w = img.shape[:2]
+	offset = 0
+	cycle_size = min(1, h/100)
+	for i, joint in enumerate(joint_img):
+		cv2.circle(img, (joint[0], joint[1]), cycle_size, (0, 255, 0), -1)
+		cv2.putText(img, str(i), (joint[0] + offset, joint[1] + offset), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255))
+	if not svPth:
+		cv2.imshow('label joints', img)
+		cv2.waitKey(0)
+		cv2.destroyAllWindows()
+	else:
+		cv2.imwrite(svPth, img)
 
 def save_2d_tg3d(img_patch, pred_2d, skel, sv_dir, idx='tmp'):
 	'''
@@ -202,14 +338,19 @@ def save_3d_tg3d(kpt_3d, sv_dir, skel, idx='tmp', suffix=None):
 	:param suffix:
 	:return:
 	'''
+	rg = None
 	if suffix:
 		svNm = '3d_' + suffix
+		if 'hm' == suffix:
+			rg = ((0,64),) * 3
+		else:
+			rg = ((-1000, 1000), ) * 3
 	else:
 		svNm = '3d'
 	sv_dir = osp.join(sv_dir, svNm)
 	make_folder(sv_dir)
 	sv_pth = osp.join(sv_dir, str(idx) + '.jpg')
-	vis_3d(kpt_3d, skel, sv_pth=sv_pth)
+	vis_3d(kpt_3d, skel, sv_pth=sv_pth, rg=rg)
 
 
 def save_hm_tg3d(HM, sv_dir, n_jt=17, idx='tmp', if_cmap=True):
@@ -253,6 +394,21 @@ def save_hm_tg3d(HM, sv_dir, n_jt=17, idx='tmp', if_cmap=True):
 	io.imsave(osp.join(sv_dir, 'f{}_tot.png'.format(idx, i)), img_as_ubyte(hm_xy_tot))
 	io.imsave(osp.join(sv_dir, 's{}_tot.png'.format(idx, i)), img_as_ubyte(hm_yz_tot))
 
+
+def save_Gfts_raw_tg3d(G_fts, sv_dir, idx='tmp'):
+	'''
+	save all G_fts in a raw npy format to for recovery later.
+	:param G_fts: already is numpy.
+	:param sv_dir_G:
+	:param idx:
+	:param shape: what grid is needed,  first prod(shape) elements will be used to form grid
+	:param out_sz: the output size of the feature map to make it large
+	:return:
+	'''
+	sv_dir_G = osp.join(sv_dir, 'G_fts_raw')
+	make_folder(sv_dir_G)
+	np.save(osp.join(sv_dir_G, str(idx)+'.npy'), G_fts)
+
 def save_Gfts_tg3d(G_fts, sv_dir, idx='tmp', shape=(5, 5), out_sz=(64, 64)):
 	'''
 
@@ -282,7 +438,9 @@ def save_Gfts_tg3d(G_fts, sv_dir, idx='tmp', shape=(5, 5), out_sz=(64, 64)):
 	make_folder(sv_dir_hist)
 	# hist_G = np.histogram(G_fts)
 	plt.clf()
-	plt.hist(G_fts.flatten(), bins=50)
+	fts_hist = G_fts.flatten()
+	fts_hist = fts_hist[fts_hist>0.1]
+	plt.hist(fts_hist, bins=50)
 	plt.savefig(osp.join(sv_dir_hist, str(idx) + '.png'))
 
 def gallery(array, n_cols=5):

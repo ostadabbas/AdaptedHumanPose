@@ -9,7 +9,7 @@ sequencewise_pck = {};
 sequencewise_auc = {};
 sequencewise_mpjpe = cell(length(sequencewise_error)+1,num_joints+2);
 sequencewise_mpjpe(1,2:(num_joints+1)) = joint_names;
-sequencewise_mpjpe{1,(num_joints+2)} = 'Average';
+sequencewise_mpjpe{1,(num_joints+2)} = 'Average';       % row 1, 2: joint name  ave
  %Generate MPJPE and PCK/AUC By sequence first
  %error_dat = {};
  %delete('error_dat');

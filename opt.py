@@ -14,6 +14,24 @@ from data.ScanAva.ScanAva import ScanAva
 from data.Human36M.Human36M import Human36M
 
 if_discovery = True # 0 thread,  ScanAva eval,  dsdir, output dir
+evals_name_config = {
+	'h36m':Human36M.evals_name,
+	'scanava': ScanAva.evals_name,
+	'cmJoints': (
+	# "R_Ankle",
+	"R_Knee",
+	"R_Hip",
+	"L_Hip",
+	"L_Knee",
+	# "L_Ankle",
+	"R_Wrist", "R_Elbow", "R_Shoulder", "L_Shoulder",
+	"L_Elbow", "L_Wrist", "Thorax",
+	# "Head",
+	"Pelvis",
+	"Torso",
+	# "Neck"
+	)
+}
 def parseArgs():
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	# add argument in
@@ -31,25 +49,26 @@ def parseArgs():
 	parser.add_argument('--ifb_debug', action='store_true')
 	parser.add_argument('--suffix_ptn_train', default='{net_BB}_{if_scraG}-scraG_{lmd_D}D{n_layers_D}_{if_ylB}-yl_{rt_SYN}rtSYN_regZ{epoch_regZ}_{if_fixG}-fG_{if_normBone}-nmBone_{optimizer}_lr{lr}', help='the suffix pattern to form name') ## --
 	parser.add_argument('--suffix_exp_train', default='exp', help='the manually given suffix for specific test')
-	parser.add_argument('--suffix_ptn_test', default='{testset}_{if_flipTest}-flip_{if_gtRtTest}-GtRt_e{start_epoch}_jt{ref_nEval}', help='the suffix pattern to form name')
+	parser.add_argument('--suffix_ptn_test', default='{testset}_flip-{if_flipTest}_GtRt-{if_gtRtTest}_Btype-{bone_type}_avB-{if_aveBoneRec}_e{start_epoch}', help='the suffix pattern to form name')
 	parser.add_argument('--suffix_exp_test', default='exp', help='mannualy added suffix for test result')
 	# -- ds specific
-	parser.add_argument('--h36mProto', default=2)
+	parser.add_argument('--h36mProto', default=2, type=int)
 
 	# -- train setting
 	parser.add_argument('--trainset', nargs='+', default=['ScanAva', 'MSCOCO', 'MPII'], help='give the main ds here the iter number will follow this one')
 	# parser.add_argument('--if_D', default='y', help='if use discriminator, if single ds, then automatically set to n')
+	parser.add_argument('--gan_mode', default='lsgan', help='gan type [lsgan|vanilla]')
 	parser.add_argument('--lmd_D', default=0.01, type=float, help='weight for D loss, 0. for no D')
 	parser.add_argument('--if_ylB', default='y', help='if train the low task in target B domain')
 	parser.add_argument('--if_tightBB_ScanAva', default='y', help='if use tight bb for scanAva')
-	parser.add_argument('--rt_SYN', default=1, type=float, help='the ratio of the subjects used in training, larger step will make less training data')
-	parser.add_argument('--inp_sz', default=256, help='input image size')
+	parser.add_argument('--rt_SYN', default=1, type=int, help='the ratio of the subjects used in training, larger step will make less training data')
+	parser.add_argument('--inp_sz', default=256, type=int, help='input image size')
 	parser.add_argument('--end_epoch', default=25, type=int, help='when reach this epoch, will stop. python index style, your model will be saved as epoch_tar-1, ori 25 ')
 	parser.add_argument('--epoch_step', default=9, type=int, help='mainly for time constrained system, each time only train step epoches, -1 for all')
 	parser.add_argument('--trainIter', default=-1, type=int, help='train iters each epoch, -1 for whole set. For debug purpose (DBP)')
-	parser.add_argument('--if_normBone', default='y', help='true of false [y|n] normalized the bones')
+	parser.add_argument('--if_normBone', default='n', help='true of false [y|n] normalized the bones')
 	parser.add_argument('--if_fixG', default='n', help='if fix G after introducing z training')
-	parser.add_argument('--epoch_regZ', default=10,  type=int, help='when to start training z part. depend on option to see if fixG or not. 0 means from very beginning')
+	parser.add_argument('--epoch_regZ', default=0,  type=int, help='when to start training z part. depend on option to see if fixG or not. 0 means from very beginning')
 	parser.add_argument('--optimizer', default='adam', help='[adam|nadam]')
 	parser.add_argument('--lr', default=1e-3, type=float)
 	parser.add_argument('--lr_policy', default='multi_step', help='[step|plateau|multi_step|cosine]')
@@ -60,14 +79,13 @@ def parseArgs():
 	parser.add_argument('--gpu_ids', nargs='+', default=[0], type=int, help='the ids of the gpu')
 	# parser.add_argument('--if_coninue', default='y', help='if continue to train')
 	parser.add_argument('--start_epoch', default=-1, type=int, help='where to being the epoch, -1 for continue, others hard indicating. For safety, if start epoch is the lastest as saved model, will quit ')
-	parser.add_argument('--if_scraG', default='y', help='if backbone net from scratch')
+	parser.add_argument('--if_scraG', default='n', help='if backbone net from scratch')
 	parser.add_argument('--init_type', default='xavier', help='weight initialization mode, gain 0.02 fixed in')
 	parser.add_argument('--n_thread', default=10, type=int, help='how many threads')
-	parser.add_argument('--save_step', default=2, help='how many steps to save model')
-	parser.add_argument('--svVis_step', default=10, help='step to save visuals')
-	parser.add_argument('--if_cmJoints', default='n', help='if use common joints across datasets without including the contriversal parts like sites and upper neck, torso, but only neck and head, pelvis will be always kept')
+	parser.add_argument('--save_step', default=2, type=int, help='how many steps to save model')
+	parser.add_argument('--if_cmJoints', default='n', help='if use common joints across datasets without including the contriversal parts like sites and upper neck, torso, but only neck and head, pelvis will be always kept, obsolette')
 	parser.add_argument('--if_pinMem', action='store_false', help='if pin memory to accelerate. Not working on windows')
-	parser.add_argument('--if_finalTest', default='y', help='if run a final test and keep the result after training session')
+	parser.add_argument('--if_finalTest', default='n', help='if run a final test and keep the result after training session')
 
 	# -- visualization
 	if if_discovery:
@@ -94,11 +112,17 @@ def parseArgs():
 	parser.add_argument('--testset', default='Human36M', help='testset, usually single [Human3dM|ScanAva]')
 	parser.add_argument('--testIter', type=int, default=-1, help='test iterations final and epoch test, -1 for all, DBP')
 	# parser.add_argument('--n_foldingLpTest', type=int, default=20, help='downsample the epoch test to quicken the in loop test process. 1 for full test in loop')
-	parser.add_argument('--gan_mode', default='lsgan', help='gan type [lsgan|vanilla]')
 	parser.add_argument('--if_flipTest', default='y')
 	parser.add_argument('--if_gtRtTest', default='y', help='if use gt distance for root')
 	parser.add_argument('--if_adj', default='y', help='if adjust the root location to adapt different dataset')
 	parser.add_argument('--if_aveBoneRec', default='y', help='if use average boneLento recover the estimation')
+	parser.add_argument('--testImg', default=None, help='if indicate image, test will show the skeleton and 2d images of it')
+	parser.add_argument('--rt_pelvisUp', default=0., type=float, help='move estimattion result pelvis up ratio, due to the joint definition difference. Apply at evaluation, main for h36m. scanava 0.08. ')
+	parser.add_argument('--bone_type', default='h36m', help='choose the type for joint selection [scanava|h36m|cmJoints]')
+	parser.add_argument('--if_loadPreds', default='n', help='if load preds in test func')
+	parser.add_argument('--if_test_ckpt', default='n', help='if check intermediate checkpoint')
+	parser.add_argument('--svVis_step', default=10, type=int, help='step to save visuals')
+	parser.add_argument('--test_par', default='test', help='the exact test portion, could be [testInLoop|test|train]')  # I just save default first
 
 	# -- network settings
 	parser.add_argument('--n_layers_D', type=int, default=2, help='descriminator layer number, for 8 bb, 2 layers are good')
@@ -114,34 +138,35 @@ def parseArgs():
 	opts.pixel_std = (0.229, 0.224, 0.225)
 
 	opts.ref_joints_name = Human36M.joints_name     # stick to Human36M, we can not evaluate but keep all
-	# opts.ref_joints_name = joints_name     # stick to Human36M, we can not evaluate but keep all
 	opts.ref_flip_pairs_name = Human36M.flip_pairs_name
-	# opts.ref_flip_pairs_name = flip_pairs_name
-	# post result
-	opts.ref_joints_num = len(opts.ref_joints_name)  # how image output
 	opts.ref_flip_pairs =ut_p.nameToIdx(opts.ref_flip_pairs_name, opts.ref_joints_name)
 	opts.ref_root_idx = opts.ref_joints_name.index('Pelvis')
-	# option1 for h36m joints
-	if 'n' == opts.if_cmJoints:
-		opts.ref_skels_name = Human36M.skels_name       # draw from rediction skels
-		opts.ref_evals_name = Human36M.evals_name      # if in eval, keep otherwise, drop
-	else: #
+	opts.ref_evals_name = evals_name_config[opts.bone_type]
+	if 'h36m' == opts.bone_type:
+		opts.ref_skels_name = Human36M.skels_name
+	else:
 		opts.ref_skels_name = ScanAva.skels_name
-		opts.ref_evals_name = ScanAva.evals_name
+
 	opts.ref_nEval = len(opts.ref_evals_name)
 	opts.ref_skels_idx = ut_p.nameToIdx(opts.ref_skels_name, opts.ref_joints_name)
 	opts.ref_evals_idx = ut_p.nameToIdx(opts.ref_evals_name, opts.ref_joints_name)
 
 	opts.clipMode = '01'        # for save image purpose
 	opts.adj_dict = {     # fill this if after calculation
-		'Human36M': (0, 0, 0),
+		'Human36M': (0, 0., 0.),
 		'MuPoTS': (0, 0, 0),
 		'ScanAva': None,
+		'SURREAL': None,
+		'MSCOCO': None
 	}
 	opts.adj = opts.adj_dict[opts.testset]      # choose the one
 
 	# Derived parameters, model, result part...
 	# form exp folder
+	if not os.path.isabs(opts.output_dir):
+		opts.output_dir = os.path.abspath(opts.output_dir)
+	opts.ref_joints_num = len(opts.ref_joints_name)  # how image output
+	opts.ref_evals_num = len(opts.ref_evals_name)  # could be smaller
 	nmT = '-'.join(opts.trainset)  # init
 	suffix_train = (opts.suffix_ptn_train.format(
 		**vars(opts))) if opts.suffix_ptn_train != '' else ''  # vars return __dict__ attribute
@@ -149,12 +174,12 @@ def parseArgs():
 	opts.name = nmT     # current experiment name
 	opts.exp_dir = osp.join(opts.output_dir, nmT)
 	opts.model_dir = osp.join(opts.exp_dir, 'model_dump')
-	opts.vis_dir = osp.join(opts.exp_dir, 'vis')
+	opts.vis_dir = osp.join(opts.exp_dir, 'vis', opts.test_par)
 	opts.log_dir = osp.join(opts.exp_dir, 'log')
 	opts.rst_dir = osp.join(opts.exp_dir, 'result')
 	opts.num_gpus = len(opts.gpu_ids)
 	opts.web_dir = osp.join(opts.exp_dir, 'web')
-	opts.vis_test_dir = osp.join(opts.vis_dir, opts.testset)
+	opts.vis_test_dir = osp.join(opts.vis_dir, opts.testset)    # specific test dataset
 
 	yn_dict = {'y': True, 'n': False}
 	opts.flip_test = yn_dict[opts.if_flipTest]
@@ -171,7 +196,7 @@ def parseArgs():
 			start_epoch_sv = 0
 		if opts.start_epoch == -1:
 			opts.start_epoch = start_epoch_sv
-		elif start_epoch_sv != opts.start_epoch:
+		elif start_epoch_sv != opts.start_epoch and 'y' != opts.if_test_ckpt:
 			print('not latest epoch, for protection concern, please clean up exp folder mannually ')
 			exit(-1)
 	else:       # no dir, first time
@@ -208,7 +233,6 @@ def print_options(opt, if_sv = False):
 		with open(file_name, 'wt') as opt_file:
 			opt_file.write(message)
 			opt_file.write('\n')
-
 opts = parseArgs()
 
 def set_env(opts):

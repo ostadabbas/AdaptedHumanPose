@@ -13,6 +13,7 @@ import utils.utils_tool as ut_t
 from collections import OrderedDict
 from tqdm import tqdm
 from pathlib import Path
+from utils.evaluate import evaluate
 
 # official ref
 # part_match = {'root':'root', 'bone_00':'Pelvis', 'bone_01':'L_Hip', 'bone_02':'R_Hip',
@@ -45,17 +46,7 @@ class SURREAL:
 		('Pelvis', 'R_Hip'), ('R_Hip', 'R_Knee'), ('R_Knee', 'R_Ankle'),
 		('Pelvis', 'L_Hip'), ('L_Hip', 'L_Knee'), ('L_Knee', 'L_Ankle'),
 	)
-	# skels_name = (        # ScanAva version
-	# 	('Pelvis', 'Thorax'), ('Thorax', 'Head'),
-	# 	('Thorax', 'R_Shoulder'), ('R_Shoulder', 'R_Elbow'), ('R_Elbow', 'R_Wrist'),
-	# 	('Thorax', 'L_Shoulder'), ('L_Shoulder', 'L_Elbow'), ('L_Elbow', 'L_Wrist'),
-	# 	('Pelvis', 'R_Hip'), ('R_Hip', 'R_Knee'), ('R_Knee', 'R_Ankle'),
-	# 	('Pelvis', 'L_Hip'), ('L_Hip', 'L_Knee'), ('L_Knee', 'L_Ankle'),
-	# )  # for original preferred, no Torso and Pelvis
-	# boneLen2Dave_mm_cfg = {
-	# 	'y': 3700,
-	# 	'n': 3900
-	# } # first for skelenton with different definitions, I think no need for these small differences.
+	action_names = None
 	boneLen2d_av_mm = 3590 # average over the test part, not used during train
 	# auto generate idx
 	flip_pairs = nameToIdx(flip_pairs_name, joints_name)
@@ -64,6 +55,8 @@ class SURREAL:
 	if_SYN = True
 	f = (600, 600)
 	c = (160, 120)      # in python this is righ pixel of center, so 255.5 should be nice
+
+	getNmIdx=None       # empty func
 
 	def __init__(self, data_split, opts={}):
 		self.data_split = data_split
@@ -84,7 +77,7 @@ class SURREAL:
 		# separation can be controlled for needs
 
 		self.data = self.load_data()
-		print("ScanAva {} initialized".format(data_split))
+		print("SURREAL {} initialized".format(data_split))
 
 	def get_subsampling_ratio(self):    # total 211443
 		if self.data_split == 'train':
@@ -119,19 +112,9 @@ class SURREAL:
 		for anno in self.data:
 			img_path = anno['img_path']  # eg: s_01_act_02_subact_01_ca_01/s_01_act_02_subact_01_ca_01_000001.jpg
 			joints_cam = anno['joint_cam']
-
-			# id_subjStr = self.getSubjNm(img_path) # only 2 character
 			boneLen = ut_p.get_boneLen(joints_cam[:, :dim], self.skeleton)
-			# if id_subjStr in boneSum_dict:
-			# 	boneSum_dict[id_subjStr] += boneLen
-			# 	n_dict[id_subjStr] += 1
-			# else:  # first
-			# 	boneSum_dict[id_subjStr] = boneLen
-			# 	n_dict[id_subjStr] = 1
 			bone_sum += boneLen
-		# for k in boneSum_dict:
-		# 	boneSum_dict[k] = float(boneSum_dict[k]) / n_dict[k]
-		bone_av = bone_sum/N
+		bone_av = float(bone_sum)/N
 		return bone_av
 
 	def load_data(self):
@@ -163,10 +146,12 @@ class SURREAL:
 			joint_img[:, :2] = annos[i].get('joints2D').transpose()    # n_jt * 3 filled
 			joint_img = self.aug_joints(joint_img)  # extend
 			# deal with 3D
-			camDist = annos[i]['camDist']
-			joint_cam = self.aug_joints(annos[i].get('joints3D').transpose()[:, ::-1] * 1000) # to mm
-			joint_cam[:,1] = - joint_cam[:,1]       # y flip
-			# flip 3d joints of  SURREAL
+			camDist = annos[i]['camDist'][0, 0]
+			joint_cam = self.aug_joints(annos[i].get('joints3D').transpose()[:, ::-1] * 1000) # to mm x, y z to r, up, in
+			joint_cam[:,1] = - joint_cam[:,1]       # y flip to r, d, in
+			# joint_cam[:,2] = joint_cam[:,2] + camDist   # This only gives distance, however, assume cam,x,y 0, which is not correct
+			joint_cam = joint_cam - np.array([0, 0, -camDist*1000])  # in their render they set height to 1000, yet x is misaligned. Yet all train and test is root centered, doesn't hurt.
+			# flip 3d joints of  SURREAL wrong pairs
 			for pair in self.flip_pairs:
 				joint_cam[pair[0], :], joint_cam[pair[1], :] = joint_cam[pair[1], :], joint_cam[pair[0], :].copy()      # L - R ex
 
@@ -175,7 +160,18 @@ class SURREAL:
 			joint_img[:, 2] = joint_cam[:, 2] - joint_cam[self.joints_name.index('Pelvis'), 2]
 
 			# get bb make them regular
-			bbox = ut_p.get_bbox(joint_img)
+			bbox = ut_p.get_bbox(joint_img)     # bb could be outside image,  then?
+			width = 320
+			height =240
+			x,y,w, h = bbox
+			x1 = np.max((0, x))
+			y1 = np.max((0, y))
+			x2 = np.min((width - 1, x1 + np.max((0, w - 1))))
+			y2 = np.min((height - 1, y1 + np.max((0, h - 1))))
+			if x2 >= x1 and y2 >= y1:       # don't have anno area
+				bbox = np.array([x1, y1, x2 - x1, y2 - y1])
+			else:
+				continue
 			# process to ratio
 			w = bbox[2]
 			h = bbox[3]
@@ -208,17 +204,39 @@ class SURREAL:
 
 		return data
 
-	def evaluate(self, preds, jt_adj=None, logger_test=None, if_svVis=False, if_svEval=False):
+	def evaluate(self, preds, **kwargs):
 		'''
-		rewrite this one. preds follow opts.ref_joint,  gt transfer to ref_joints, taken with ref_evals_idx.
-		:param preds:
-		:param jt_adj:
+		rewrite this one. preds follow opts.ref_joint,  gt transfer to ref_joints, taken with ref_evals_idx. Only testset will calculate the MPJPE PA to prevent the SVD diverging during training.
+		:param preds: xyz HM
+		:param kwargs:  jt_adj, logger_test, if_svEval,  if_svVis
 		:return:
 		'''
+		logger_test = kwargs.get('logger_test', None)
+		if_svEval = kwargs.get('if_svEval', False)
+		if_svVis = kwargs.get('if_svVis', False)
+		print('Evaluation start...')
+		gts = self.data
+		assert (len(preds) <= len(gts))  # can be smaller
+		# gts = gts[:len(preds)]  # take part of it
+		# joint_num = self.joint_num
+		if self.data_split == 'test':
+			if_align = True
+		else:
+			if_align = False  # for slim evaluation
 
-		print('SURREAL eval not implemented')
-		return -1
+		# all can be wrapped together  ...
+		# name head, ds specific
+		if if_svEval:
+			pth_head = '_'.join([self.opts.nmTest, self.data_split])  # ave bone only in recover not affect the HM
+		else:
+			pth_head = None
+		# get prt func
+		if logger_test:
+			prt_func = logger_test.info
+		else:
+			prt_func = print
 
+		evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=self.action_names, fn_getIdx=self.getNmIdx, opts=self.opts, avBone=self.boneLen2d_av_mm, if_svVis=if_svVis, pth_head=pth_head, fn_prt=prt_func)
 
 if __name__ == '__main__':
 	# Test case

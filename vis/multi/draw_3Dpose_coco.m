@@ -1,7 +1,7 @@
 function draw_3Dpose_coco()
  
 %    root_path = '/mnt/hdd1/Data/Human_pose_estimation/COCO/2017/val2017/';
-    root_path = '/scratch/liu.shu/datasets/MSCOCO/images/val2017/';
+    root_path = '/scratch/liu.shu/datasets/MSCOCO/val2017/';
     save_path = './vis/';
     num_joint =  17;
 

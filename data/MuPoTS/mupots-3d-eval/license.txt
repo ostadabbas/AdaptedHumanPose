@@ -1,0 +1,25 @@
+Copyright (c) 2018 MPI for Informatics
+
+Permission is hereby granted, free of charge, to any person or company obtaining a copy of this software, dataset and associated documentation files (the "Software") 
+from the copyright holders to use the Software for any non-commercial purpose. Methods and models that make use of the provided Software in any way can only be used for 
+non-commercial purposes. Publication, redistribution and (re)selling of the software, of modifications, extensions, and derivatives of it, and of other software 
+containing portions of the licensed Software, are not permitted. The Copyright holder is permitted to publically disclose and advertise the use of the software by any licensee. 
+The above is subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software, 
+as well as any software including substantial portions of the software.
+
+If the software is used, the licensee is required to cite the use of the following publications in any documentation 
+or publication that results from the work:
+[1] Single-Shot Multi-Person 3D Pose Estimation From Monocular RGB (3DV 2018)
+D. Mehta; O. Sotnychenko; F. Mueller; W. Xu; S. Sridhar; G. Pons-Moll; C. Theobalt
+[2] Monocular 3D Human Pose Estimation In The Wild Using Improved CNN Supervision (3DV 2017)
+D. Mehta; H. Rhodin; D. Casas; P. Fua; O. Sotnychenko; W. Xu; C. Theobalt
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

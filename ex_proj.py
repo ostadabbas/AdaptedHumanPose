@@ -20,46 +20,54 @@ from data.ScanAva.ScanAva import ScanAva
 from data.MSCOCO.MSCOCO import MSCOCO
 from data.MPII.MPII import MPII
 from data.SURREAL.SURREAL import SURREAL
+from data.MuCo.MuCo import MuCo
 from data.dataset import AdpDataset_3d
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from utils.timer import Timer
 from utils.vis import Visualizer
 from models.modelTG import TaskGenNet
+import cv2
+import torch
 
 import os.path as osp
 
 if __name__ == '__main__':
 
-
+	## basic operation
 	## test logger
 	# arr1 = np.array([[2,8,6],
 	#                  [9,8, 1]])
 	# logger_test = Colorlogger(opts.log_dir, 'test_logs.txt')
 	# logger_test.info('resut array' + np.array2string(arr1)) # can't combine string + arr, but can combine after all string
 
-
-
 	## test ds
 	trans = transforms.Compose([
 		transforms.ToTensor(),
 		transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
-	# ds = ScanAva('train', opts)
+	ds = ScanAva('train', opts)
 	# ds = MSCOCO('test', opts)
 	# ds = MPII('test', opts)
-	ds = SURREAL('test', opts)
-	if 'test' in ds.data_split:
-		is_train = False
-	else:
-		is_train = True
-	ds_adp3d = AdpDataset_3d(ds, opts.ref_joints_name, is_train, trans, opts=opts)
-	img, tar = ds_adp3d.__getitem__(15)
-	loader = DataLoader(dataset=ds_adp3d, batch_size=32, shuffle=True, num_workers=1)
-	nm_3d = osp.join('tmp_img3d.jpg')
-	# rg = [[0, opts.output_shape[1]], [0, opts.output_shape[0]], [0, opts.depth_dim]]
-	rg = None
-	jt_cam = ds.data[0]['joint_img']
-	print('image name', ds.data[0]['img_path'])
+	# ds = SURREAL('test', opts)
+	# ds = MuCo('train', opts)
+	# if 'test' in ds.data_split:
+	# 	is_train = False
+	# else:
+	# 	is_train = True
+	# # get raw image and plot
+	# img =cv2.imread(ds.data[0]['img_path'])
+	joint_img = ds.data[0]['joint_img']
+	# ut_t.showJoints(img, joint_img)
+
+	# ds_adp3d = AdpDataset_3d(ds, opts.ref_joints_name, is_train, trans, opts=opts)
+	# img, tar = ds_adp3d.__getitem__(15)
+
+	# loader = DataLoader(dataset=ds_adp3d, batch_size=32, shuffle=True, num_workers=1)
+	# nm_3d = osp.join('tmp_img3d.jpg')
+	# # rg = [[0, opts.output_shape[1]], [0, opts.output_shape[0]], [0, opts.depth_dim]]
+	# rg = None
+	# jt_cam = ds.data[0]['joint_img']
+	# print('image name', ds.data[0]['img_path'])
 	# ut_t.vis_3d(jt_cam, ds.skeleton, sv_pth=nm_3d, rg=rg)    # avoid conflicts with other test in own vis_dir
 	# ut_t.vis_3d(tar['joint_hm'], opts.ref_skels_idx, sv_pth=nm_3d, rg=rg)    # avoid conflicts with other test in own vis_dir
 	# itr_timer = Timer()
@@ -67,7 +75,7 @@ if __name__ == '__main__':
 	# itr_loader = iter(loader)       # this is purely ScanAva, why Human36M coco error?!!
 	# img, tar = next(itr_loader)
 	# print('get first item from iter')
-	# print('iter average time is {}'.format(itr_timer.toc()))
+	# print('iter average time is {}'.format(itr_timer.toc())) #
 	#
 	# itr_timer.reset()
 	# itr_timer.tic()
@@ -125,3 +133,9 @@ if __name__ == '__main__':
 	# grid = ut_t.gallery(fts_rsz, ncols=3)
 	# plt.imshow(grid)
 	# plt.show()        # -- ok
+
+	## ut_p test
+	# ts1 = torch.arange(8).reshape(2,4)
+	# ts_flip = ut_p.flip(ts1, 1)
+	# print(ts_flip)
+

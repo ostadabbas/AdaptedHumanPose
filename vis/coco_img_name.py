@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, '../main')
-from config import cfg
+# from config import cfg
 import os
 import os.path as osp
 import scipy.io as sio
@@ -11,9 +11,9 @@ import cv2
 import random
 import math
 
-
+ds_dir = '/scratch/liu.shu/datasets'
 # annot_path = osp.join('coco', 'person_keypoints_val2017.json')
-annot_path = osp.join(cfg.ds_dir, 'MSCOCO', 'annotations', 'person_keypoints_val2017.json')
+annot_path = osp.join(ds_dir, 'MSCOCO', 'annotations', 'person_keypoints_val2017.json')
 
 data = []
 db = COCO(annot_path)

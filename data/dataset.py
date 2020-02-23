@@ -25,7 +25,7 @@ class AdpDataset_3d(Dataset):
 	changed to dict based feed e
 	'''
 
-	def __init__(self, db, ref_joints_name, is_train, transform, opts={}):
+	def __init__(self, db, ref_joints_name, is_train, transform=None, opts={}):
 		self.db = db.data
 		self.joint_num = db.joint_num
 		self.skeleton = db.skeleton
@@ -34,6 +34,11 @@ class AdpDataset_3d(Dataset):
 		self.if_SYN = db.if_SYN  # ds determined
 		self.joints_name = db.joints_name
 		self.ref_joints_name = ref_joints_name
+		if not transform:  # if not given, give tensor normalization to overide
+			transform = transforms.Compose([
+				transforms.ToTensor(),
+				transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
+
 		self.transform = transform
 		self.is_train = is_train
 		self.opts = opts
@@ -91,7 +96,10 @@ class AdpDataset_3d(Dataset):
 			# boneLen3d = data['boneLen3d']
 			boneLen2d_pix = utils_pose.get_boneLen(joint_2d, skeleton)  # rescaled bone
 			boneLen2d_mm = utils_pose.get_boneLen(joint_cam[:, :2], skeleton)
+			if not boneLen2d_mm>0:
+				boneLen2d_mm = 3700
 			rt_pix2mm = boneLen2d_pix / boneLen2d_mm
+
 			joint_img[:, 2] *= rt_pix2mm / self.opts.input_shape[
 				0]  # z = z*2d/3d /inp_size/  normalize to image size. Note, people usually use square space, yet for tight BB, sometimes it is possible depth is larger then 2d space. so I keep sensing range x:y:z = 1:1:2 ratio to include distant z. Estimation use standard z
 		else:  # fix box norm
@@ -172,9 +180,9 @@ def get_aug_config():
 
 
 def generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion, input_shape=(256, 256)):
-	# return skimage RGB
+	# return skimage RGB,  h,w,c
 	img = cvimg.copy()
-	img_height, img_width, img_channels = img.shape
+	img_height, img_width, img_channels = img.shape # h,w,c
 
 	# synthetic occlusion
 	if do_occlusion:
@@ -269,7 +277,7 @@ def trans_point2d(pt_2d, trans):
 	return dst_pt[0:2]
 
 
-def genDsLoader(opts, mode=0):
+def genDsLoader(opts, mode=0, if_trainShuffle=True):
 	'''
 	generate dataset, dataLoader and iterator list (singler)
 	:param opts:
@@ -283,7 +291,7 @@ def genDsLoader(opts, mode=0):
 		adpDs_li, loader_li, iter_li = [], [], []
 		for i in range(len(opts.trainset)):
 			ds = eval(opts.trainset[i])("train", opts=opts)
-			ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, True, trans, opts=opts)
+			ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, if_trainShuffle, trans, opts=opts)
 			loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
 			                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
 			itr_loader = iter(loader)       # this is purely ScanAva, why Human36M coco error?!!
@@ -321,11 +329,11 @@ def genLoaderFromDs(ds, trans=None, opts={}, if_train=False):
 		trans = transforms.Compose([
 			transforms.ToTensor(),
 			transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
-	if 'test' in ds.data_split:
-		is_train = False
-	else:
-		is_train = True
-	ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, is_train, trans, opts=opts)
+	# if 'test' in ds.data_split:
+	# 	is_train = False
+	# else:
+	# 	is_train = True
+	ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, if_train, trans, opts=opts)
 	loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size, shuffle=if_train, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
 	iterator = iter(loader)
 

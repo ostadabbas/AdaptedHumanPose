@@ -8,6 +8,14 @@ from pycocotools.coco import COCO
 
 class MuCo:  # we don't use this one, so not processed
     if_SYN = False
+    joints_have_depth = True
+    # joints_name = (
+    # 'Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee',
+    # 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe')  #  original the head top and head is not correct
+    joints_name = (
+    'Head', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee',
+    'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Torso', 'Neck', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe')  # what is head and head top
+
     def __init__(self, data_split, opts={}):
         self.data_split = data_split
         self.ds_dir = opts.ds_dir
@@ -15,10 +23,10 @@ class MuCo:  # we don't use this one, so not processed
         self.img_dir = osp.join(opts.ds_dir, 'MuCo')
         self.train_annot_path = osp.join(opts.ds_dir, 'MuCo', 'MuCo-3DHP.json')
         self.joint_num = 21
-        self.joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe') # what is head and head top
+        self.opts = opts
+
         self.flip_pairs = ( (2, 5), (3, 6), (4, 7), (8, 11), (9, 12), (10, 13), (17, 18), (19, 20) )
         self.skeleton = ( (0, 16), (16, 1), (1, 15), (15, 14), (14, 8), (14, 11), (8, 9), (9, 10), (10, 19), (11, 12), (12, 13), (13, 20), (1, 2), (2, 3), (3, 4), (4, 17), (1, 5), (5, 6), (6, 7), (7, 18) )
-        self.joints_have_depth = True
         self.root_idx = self.joints_name.index('Pelvis')
         self.data = self.load_data()
 
@@ -79,7 +87,7 @@ class MuCo:  # we don't use this one, so not processed
                 y1 = np.max((0, y))
                 x2 = np.min((img_width - 1, x1 + np.max((0, w - 1))))
                 y2 = np.min((img_height - 1, y1 + np.max((0, h - 1))))
-                if w*h > 0 and x2 >= x1 and y2 >= y1:
+                if w*h > 0 and x2 > x1 and y2 > y1: # set strict larger?
                     bbox = np.array([x1, y1, x2-x1, y2-y1])
                 else:
                     continue

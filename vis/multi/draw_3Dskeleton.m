@@ -49,7 +49,7 @@ function f = draw_3Dskeleton(img, pred_3d_kpt, num_joint, skeleton, colorList_jo
     z = pred_3d_kpt(:,:,3);
     zmin = min(z(:));
     zmax = max(z(:));
-    
+    % set range of the skeleton, then set image as bg, roughly aligned.
     xlim([xmin xmax]);
     ylim([ymin ymax]);
     zlim([zmin zmax]);

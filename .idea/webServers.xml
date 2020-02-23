@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="acf6952c-3950-4086-a984-a36cbf9acb8b" name="discovery" url="http://xfer.discovery.neu.edu">
+        <fileTransfer host="xfer.discovery.neu.edu" port="22" rootFolder="/scratch/liu.shu/codesPool" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+      <webServer id="de6345d7-6139-4093-9637-e281d1d0ad56" name="AR" url="http://129.10.132.45">
+        <fileTransfer host="129.10.132.45" port="22" rootFolder="/home/jun/codesPool" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

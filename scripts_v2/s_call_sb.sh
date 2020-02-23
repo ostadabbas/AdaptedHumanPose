@@ -9,26 +9,31 @@
 #change paths to your desired locations:
 SOURCEPATH=scripts_v2  # call this from a sub folder of main
 #CURRDIR=/scratch/username/...
-N=2   # pay attention to check recursive numbers
+N=3  # pay attention to check recursive numbers
 declare -a arr_exp=(
-#"D0_R2"
-#"D0_z10_nfG_ylB_yNB_nScra"
-#"D01_z10_nfG_ylB_yNB_nScra"
-"D001_z0_nfG_ylB_yNB_nScra"
-#"D001_z0_nfG_ylB_yNB_nScra_nNB"
-#"D001_z2_scra_3-10-20"
-#"D001_z10_nfG_nlB_yNB_nScra"
-#"D001_z10_nfG_ylB_yNB_nScra"
-#"D001_z10_nfG_ylB_yNB_yScra"
-#"D001_z10_yfG_ylB_yNB_nScra"
-#"D10_z10_nfG_ylB_yNB_nScra"
-#"D1_z10_nfG_ylB_yNB_nScra"
-#"D001_z0_nfG_ylB_yNB_nScra_R1"
-#"D001_z0_nfG_ylB_yNB_nScra_nNB_R1"
-#"H36M_MPII"
-#"SR_D001_z0_nfG_ylB_yNB_nScra"
-#"SR_D001_z10_nfG_ylB_yNB_nScra"
-#"SR_D10_z10_nfG_ylB_yNB_nScra"
+#"D0_z0_fGn_lBy_NBn_ScraGn"
+#"D0_z0_fGn_lBy_NBn_ScraGy"
+#"D01_z0_fGn_lBy_NBn_ScraGn"
+##"D001_z0_fGn_lBy_NBn_ScraGn"
+#"D1_z0_fGn_lBy_NBn_ScraGn"
+#"D10_z0_fGn_lBy_NBn_ScraGn"
+#"D100_z0_fGn_lBy_NBn_ScraGn"
+#"D100_z0_fGn_lBy_NBn_ScraGy"
+#"D100_z0_fGn_lBy_NBn_ScraGn_GmodeV"
+#"D1000_z0_fGn_lBy_NBn_ScraGn"
+#"SR_D0_z0_fGn_lBy_NBn_ScraGn"
+#"SR_D1_z0_fGn_lBy_NBn_ScraGn"
+#"SR_D10_z0_fGn_lBy_NBn_ScraGn"
+#"SURREAL_ds1"
+#"SR_D10_z0_fGn_lBn_NBn_ScraGn"
+"MuCo_D0_z0_fGn_lBy_NBn_ScraGn"
+#"ScanAva_ds1"
+#"D10_z0_fGn_lBn_NBn_ScraGn"
+#"D10_z0_fGn_lBy_NBn_ScraGn_rtSyn2"
+#"D10_z0_fGn_lBy_NBn_ScraGn_rtSyn3"
+#"DS4_D10"
+#"D10_z0_fGn_lBy_NBn_ScraGn_res101"
+#"D10_z0_fGn_lBy_NBn_ScraGn_res152"
                 )
 
 for i in "${!arr_exp[@]}"; do

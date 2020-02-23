@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 import copy
+from collections import OrderedDict
+from tqdm import tqdm
 
 
 def cam2pixel(cam_coord, f, c):
@@ -163,7 +165,7 @@ def flip(tensor, dims):
 	if not isinstance(dims, (tuple, list)):
 		dims = [dims]
 	indices = [torch.arange(tensor.shape[dim] - 1, -1, -1,
-	                        dtype=torch.int64) for dim in dims]
+	                        dtype=torch.int64) for dim in dims] # ts shape[dim], flip
 	multi_indices = multi_meshgrid(*indices)
 	final_indices = [slice(i) for i in tensor.shape]
 	for i, dim in enumerate(dims):
@@ -185,3 +187,34 @@ def get_boneLen(joints, skeleton):
 	for e in skeleton:
 		s += ((joints[e[0]] - joints[e[1]]) ** 2).sum() ** 0.5
 	return s
+
+def get_boneLen_av(annos, skel, dim=2, fn_getIdx= None, jtNm='joint_cam'):
+	'''
+	get the average bone length, based on the skels provided. though flexible design, you suppose to use eval joint to form skel which is can be gotten via  ut_p.idx2Nm func. provide average bone len for each. If no fn_getIdx, then return only the sum result.
+	:param annos:
+	:param skels:
+	:param dim: dim depth for bone calculation
+	:return:
+	'''
+	boneSum_dict = OrderedDict()  # keep sum of each subject
+	n_dict = OrderedDict()
+	bone_sum = 0.
+	N = len(annos)
+	for anno in tqdm(annos):
+		img_path = anno['img_path']  # eg: s_01_act_02_subact_01_ca_01/s_01_act_02_subact_01_ca_01_000001.jpg
+		joints_cam = anno[jtNm]
+		boneLen = get_boneLen(joints_cam[:, :dim], skel)
+		bone_sum += boneLen
+		if fn_getIdx:
+			idx_subj = fn_getIdx(img_path)
+			if idx_subj in boneSum_dict:
+				boneSum_dict[idx_subj] += boneLen
+				n_dict[idx_subj] += 1
+			else:  # first
+				boneSum_dict[idx_subj] = boneLen
+				n_dict[idx_subj] = 1
+	bone_av = float(bone_sum)/N
+	if fn_getIdx:
+		for k in boneSum_dict:
+			boneSum_dict[k] = float(boneSum_dict[k]) / n_dict[k]
+	return bone_av, boneSum_dict

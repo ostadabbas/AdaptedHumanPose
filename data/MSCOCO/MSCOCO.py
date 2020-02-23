@@ -7,10 +7,11 @@ import json
 import cv2
 import random
 import math
-from utils.utils_pose import pixel2cam, warp_coord_to_ori
+from utils.utils_pose import pixel2cam, warp_coord_to_ori, nameToIdx
 from utils.vis import vis_keypoints, vis_3d_skeleton
 from pathlib import Path
 from tqdm import tqdm
+
 
 class MSCOCO:
     # we don't process this one specifically, data std fully covered already. Then test is split config is not needed. train give 19 full bones,  thorax also comes earlier for this one
@@ -43,7 +44,8 @@ class MSCOCO:
             self.joint_num = 21 # MuCo-3DHP
             self.joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe') # MuCo-3DHP
             self.original_joint_num = 17 # MuPoTS
-            self.original_joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head') # MuPoTS
+            # self.original_joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head') # MuPoTS
+            self.original_joints_name = ('Head', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Torso', 'Neck') # MuPoTS
             self.flip_pairs = ( (2, 5), (3, 6), (4, 7), (8, 11), (9, 12), (10, 13) )
             self.skeleton = ( (0, 16), (16, 1), (1, 15), (15, 14), (14, 8), (14, 11), (8, 9), (9, 10), (11, 12), (12, 13), (1, 2), (2, 3), (3, 4), (1, 5), (5, 6), (6, 7) )
             self.eval_joint = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
@@ -150,16 +152,18 @@ class MSCOCO:
 
         return data
 
-    def evaluate(self, preds, result_dir):  #
+    def evaluate(self, preds, **kwargs):  #
         # only save pred result, no metric, should work both way
         print('Evaluation start...')
         gts = self.data
         sample_num = len(preds)
         joint_num = self.original_joint_num
 
+        result_dir = self.opts.rst_dir
+
         pred_2d_save = {}
         pred_3d_save = {}
-        for n in range(sample_num):
+        for n in tqdm(range(sample_num), desc='MSCOCO eval...'):
             
             gt = gts[n]
             f = gt['f']
@@ -168,17 +172,20 @@ class MSCOCO:
             gt_3d_root = gt['root_cam']
             # img_name = gt['img_path'].split('/')
             img_name = Path(gt['img_path']).name
-            img_name = 'coco_' + img_name[-1].split('.')[0] # e.g., coco_00000000
-            
+            # img_name = 'coco_' + img_name[-1].split('.')[0] # e.g., coco_00000000
+            img_name = 'coco_' + img_name.split('.')[0] # e.g., coco_00000000
+
             # restore coordinates to original space
             pred_2d_kpt = preds[n].copy()
             # only consider eval_joint
-            pred_2d_kpt = np.take(pred_2d_kpt, self.eval_joint, axis=0)
+            # pred_2d_kpt = np.take(pred_2d_kpt, self.eval_joint, axis=0)   # for MuPoTS
+            eval_joint = nameToIdx(self.original_joints_name, self.opts.ref_joints_name)
+            pred_2d_kpt = np.take(pred_2d_kpt, eval_joint, axis=0)
             # pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_original(pred_2d_kpt, bbox, gt_3d_root)
-            pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_ori(pred_2d_kpt, bbox, gt_3d_root, opts=self.opts, skel=self.ref_skels_idx) # use use std
+            pred_2d_kpt[:,0], pred_2d_kpt[:,1], pred_2d_kpt[:,2] = warp_coord_to_ori(pred_2d_kpt, bbox, gt_3d_root, opts=self.opts, skel=self.opts.ref_skels_idx) # use use std
 
             # 2d kpt save
-            if img_name in pred_2d_save:
+            if img_name in pred_2d_save:        # add more key points if more people 
                 pred_2d_save[img_name].append(pred_2d_kpt[:,:2])
             else:
                 pred_2d_save[img_name] = [pred_2d_kpt[:,:2]]

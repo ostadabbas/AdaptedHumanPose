@@ -18,7 +18,15 @@ from skimage.transform import resize # misc deprecated e
 
 
 def vis_keypoints(img, kps, kps_lines, kp_thresh=0.4, alpha=1):
+    '''
 
+    :param img:
+    :param kps: 3 * n_jts
+    :param kps_lines:
+    :param kp_thresh:
+    :param alpha:
+    :return:
+    '''
     # Convert from plt 0-1 RGBA colors to 0-255 BGR colors for opencv.
     cmap = plt.get_cmap('rainbow')
     colors = [cmap(i) for i in np.linspace(0, 1, len(kps_lines) + 2)]

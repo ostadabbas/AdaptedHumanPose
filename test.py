@@ -37,7 +37,7 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 	'''
 	# ds, loader, iterator = dataset.genDsLoader(opts, mode=mode)
 
-	ds_adp, loader, iter_test = genLoaderFromDs(ds_test, opts=opts)  # will be in batch format
+	ds_adp, loader, iter_test = genLoaderFromDs(ds_test, opts=opts)  # will be in batch format, sequenced
 	preds = []
 
 	itr_per_epoch = math.ceil(
@@ -51,26 +51,24 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 			input, target = next(iter_test)
 			model.set_input(input, target)
 			model.forward()
-			coord_out = model.coord
-			HM = model.HM.cpu().numpy()  # for plotting  purpose later   clone to detach
+			coord_out = model.coord.clone()
+			# HM = model.HM.cpu().numpy()  # for plotting  purpose later   clone to detach    # HM useless
 			G_fts = model.G_fts[0].cpu().numpy()  # to cpu  mem   only take 25
+
 			if opts.flip_test:
 				img_patch = input['img_patch']
 				flipped_input_img = flip(img_patch, dims=3)
 				model.set_input({'img_patch': flipped_input_img})
 				model.forward()
-				flipped_coord_out = model.coord
+				flipped_coord_out = model.coord.clone()
 				flipped_coord_out[:, :, 0] = opts.output_shape[1] - flipped_coord_out[:, :, 0] - 1  # flip x coordinates
 				for pair in opts.ref_flip_pairs:
-					flipped_coord_out[:, pair[0], :], flipped_coord_out[:, pair[1], :] = flipped_coord_out[:, pair[1],
-					                                                                     :].clone(), flipped_coord_out[
-					                                                                                 :, pair[0],
-					                                                                                 :].clone()
+					flipped_coord_out[:, pair[0], :], flipped_coord_out[:, pair[1], :] = flipped_coord_out[:, pair[1], :].clone(), flipped_coord_out[:, pair[0],:].clone()
 				coord_out = (coord_out + flipped_coord_out) / 2.
 			coord_out = coord_out.cpu().numpy()
 			preds.append(coord_out)  # add result
 
-			if if_svVis and 0 == i % opts.svVis_step:
+			if if_svVis and 0 == i % opts.svVis_step:   # every 10 step.  batch 300
 				# save visuals  only 1st one in batch
 				sv_dir = opts.vis_test_dir  # exp/vis/Human36M
 				img_patch_vis = ut_t.ts2cv2(input['img_patch'][0])
@@ -79,12 +77,13 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 				# get pred2d_patch
 				pred2d_patch = np.zeros((3, opts.ref_joints_num))  # 3xn_jt format
 				pred2d_patch[:2, :] = coord_out[0, :, :2].transpose(1, 0) / opts.output_shape[0] * opts.input_shape[
-					0]  # x * n_jt ?
+					0]  #  3 * n_jt  set depth 1 , from coord_out 0 !!
 				pred2d_patch[2, :] = 1
 				ut_t.save_2d_tg3d(img_patch_vis, pred2d_patch, skels_idx, sv_dir,
 				                  idx=idx_test)  # make sub dir if needed, recover to test set index by indexing.
-				ut_t.save_hm_tg3d(HM[0], sv_dir, n_jt=opts.ref_joints_num, idx=idx_test)  # only save the first HM here,
+				# ut_t.save_hm_tg3d(HM[0], sv_dir, n_jt=opts.ref_joints_num, idx=idx_test)  # only save the first HM here,
 				ut_t.save_Gfts_tg3d(G_fts, sv_dir, idx=idx_test)  # only first 25 hm, also histogram of G_fts
+				ut_t.save_Gfts_raw_tg3d(G_fts, sv_dir, idx=idx_test)  # only first 25 hm, also histogram of G_fts
 				# HM front and side view
 				ut_t.save_3d_tg3d(coord_out[0], sv_dir, skels_idx, idx=idx_test,
 				                  suffix='hm')  # if need mm plot, can be done in eval part with ds infor, here only for HM version
@@ -92,17 +91,16 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 	preds = np.concatenate(preds,
 	                       axis=0)  # x,y,z :HM preds = np.concatenate(preds, axis=0)   # x,y,z :HM  into vertical long one
 	if if_svEval:
-		if isinstance(ds_test, Human36M):
-			pred_pth = osp.join(ds_test.opts.rst_dir, '_'.join([opts.nmTest, ds_test.data_split, 'proto'+str(ds_test.protocol), 'pred_hm.npy']))  #
-		else:
-			pred_pth = osp.join(ds_test.opts.rst_dir, '_'.join(
-				[opts.nmTest, ds_test.data_split, 'pred_hm.npy']))  #
+		if isinstance(ds_test, Human36M):  # split_flip-[y|n]_e{epoch}_[proto1/2]
+			pred_pth = osp.join(opts.rst_dir, '_'.join(
+				[opts.testset, ds_test.data_split, 'flip_{}'.format(opts.if_flipTest), 'e{}'.format(opts.start_epoch), 'proto' + str(ds_test.protocol), 'pred_hm.npy']))  #
+		else:  # if not no protocol
+			pred_pth = osp.join(opts.rst_dir, '_'.join(
+				[opts.testset, ds_test.data_split, 'flip_{}'.format(opts.if_flipTest), 'e{}'.format(opts.start_epoch), 'pred_hm.npy']))
 		np.save(pred_pth, preds)
+	if 'test' in ds_test.data_split:    # not eval large train data
+		ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_test, if_svVis=if_svVis, if_svEval=if_svEval)  # shoulddn't return, as different set different metric, some only save
 
-	err_dict = ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_test, if_svVis=if_svVis,
-	                            if_svEval=if_svEval)  # shoulddn't return, as different set different metric, some only save
-
-	return err_dict
 
 
 def main():
@@ -118,24 +116,30 @@ def main():
 	# test Logger here
 	logger_testFinal = Colorlogger(opts.log_dir, 'testFinal_logs.txt')
 	# create model, load in the model we need with epoch number specified in opts
-
-	ds_test = eval(opts.testset)("test", opts=opts)  # keep a test set
-	if_testLoad = False      # no GPU needed in this mode
+	# ds_test = eval(opts.testset)("test", opts=opts)  # keep a test set
+	ds_test = eval(opts.testset)(opts.test_par, opts=opts)  # can test whatever set
+	if 'n' == opts.if_loadPreds:
+		if_testLoad = False      # no GPU needed in this mode
+	else:
+		if_testLoad = True
 	if if_testLoad: # load or go loop
-		if isinstance(ds_test, Human36M):
-			pred_pth = osp.join(ds_test.opts.rst_dir, '_'.join([opts.nmTest, ds_test.data_split, 'proto'+str(ds_test.protocol), 'pred_hm.npy']))  #
-		else:
-			pred_pth = osp.join(ds_test.opts.rst_dir, '_'.join(
-				[opts.nmTest, ds_test.data_split, 'pred_hm.npy']))  #
+		if isinstance(ds_test, Human36M):       # split_flip-[y|n]_e{epoch}_[proto1/2]
+			pred_pth = osp.join(opts.rst_dir, '_'.join([opts.testset, ds_test.data_split, 'flip_{}'.format(opts.if_flipTest), 'e{}'.format(opts.start_epoch), 'proto'+str(ds_test.protocol), 'pred_hm.npy']))  #
+		else:   # if not no protocol
+			pred_pth = osp.join(opts.rst_dir, '_'.join([opts.testset, ds_test.data_split, 'flip_{}'.format(opts.if_flipTest), 'e{}'.format(opts.start_epoch), opts.suffix_exp_test, 'pred_hm.npy']))
 		preds = np.load(pred_pth)
-		eval_rst = ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_testFinal, if_svVis=True, if_svEval=True)
+		ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_testFinal, if_svVis=True, if_svEval=True)
 	else:
 		model = TaskGenNet(opts)  # with initialization already, already GPU-par
 		if 0 == opts.start_epoch and 'y' == opts.if_scraG:
 			model.load_bb_pretrain()  # init backbone
 		elif opts.start_epoch > 0:  # load the epoch model
 			model.load_networks(opts.start_epoch - 1)
-		eval_rst = testLoop(model, ds_test, opts=opts, logger_test=logger_testFinal, if_svEval=True, if_svVis=True)
+		if 'test' == opts.test_par:
+			if_svEval = True
+		else:       # other test , don't save.
+			if_svEval = False
+		testLoop(model, ds_test, opts=opts, logger_test=logger_testFinal, if_svEval=if_svEval, if_svVis=True)
 
 
 if __name__ == "__main__":
