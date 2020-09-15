@@ -20,8 +20,12 @@ class Human36M:
 	action_names = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases', 'Sitting', 'SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog', 'WalkTogether']
 	joint_num = 17
 	joint_num_ori = 17      # truth labeled jts,
-	joints_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Thorax', 'Neck', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist') # max std joints, first joint_num_ori will be true labeled
-	evals_name = joints_name  # exact same thing
+	joints_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Thorax', 'Neck', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist') # max std joints, first joint_num_ori will be true labeled, 11, 14 L, R shoulder
+	# original name
+	# self.joints_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Neck', 'Nose', 'Head', 'L_Shoulder','L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'Thorax')
+	# original body part torso, neck nose head,  thorax is the shoulder center.
+
+	evals_name = joints_name  # exact same thing        # original add thorax ad the center of the shoulder , other pars are net an dnos
 	flip_pairs_name = (
 		('R_Hip', 'L_Hip'), ('R_Knee', 'L_Knee'), ('R_Ankle', 'L_Ankle'),
 		('R_Shoulder', 'L_Shoulder'), ('R_Elbow','L_Elbow'), ('R_Wrist', 'L_Wrist')
@@ -61,7 +65,6 @@ class Human36M:
 		# self.joint_num = 18  # repo original dataset:17, but manually added 'Thorax'
 		# self.joints_name_bk = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Neck', 'Nose', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'Thorax')  # Neck -> Thorax,  Nose to Neck (here is upper neck)  , no need for the final thorax input, --repoOri
 
-		# self.boneLen2d_av_mm = self.boneLen2Dave_mm_cfg[opts.if_cmJoints]
 		self.joints_have_depth = True
 		self.root_idx = self.joints_name.index('Pelvis')
 		self.lshoulder_idx = self.joints_name.index('L_Shoulder')
@@ -174,7 +177,6 @@ class Human36M:
 
 			# project world coordinate to cam, image coordinate space
 			joint_cam = np.array(ann['keypoints_cam'])
-			# joint_cam = self.add_thorax(joint_cam)
 			joint_img = np.zeros((self.joint_num, 3))
 			joint_img[:, 0], joint_img[:, 1], joint_img[:, 2] = cam2pixel(joint_cam, f, c)  # in mm
 			joint_img[:, 2] = joint_img[:, 2] - joint_cam[self.root_idx, 2]  # z  root relative
@@ -226,26 +228,23 @@ class Human36M:
 		logger_test = kwargs.get('logger_test', None)
 		if_svEval = kwargs.get('if_svEval', False)
 		if_svVis  = kwargs.get('if_svVis', False)
+		pth_hd = kwargs.get('pth_hd')
 
 		print('Evaluation start...')
 		gts = self.data
-		assert (len(preds) <= len(gts))     # can be smaller
+		assert (len(preds) <= len(gts))     # can be smaller, preds_hm!!
 
 		if self.data_split == 'test':
 			if_align = True
 		else:
 			if_align = False  # for slim evaluation
-		# name head, ds specific
-		if if_svEval:
-			pth_head = '_'.join([self.opts.nmTest, self.data_split, 'proto' + str(self.protocol)])  # ave bone only in recover not affect the HM
-		else:
-			pth_head = None
-		# get prt func
 		if logger_test:
 			prt_func = logger_test.info
 		else:
 			prt_func = print
 
-		evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=self.action_names, fn_getIdx=self.getNmIdx,
-		         opts=self.opts, if_svVis=if_svVis, pth_head=pth_head, fn_prt=prt_func)
+		if not if_svEval:
+			pth_hd = ''       #
+		# must recover to the camera sapce
+		evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=self.action_names, fn_getIdx=self.getNmIdx, opts=self.opts, if_svVis=if_svVis, pth_head=pth_hd, fn_prt=prt_func)
 

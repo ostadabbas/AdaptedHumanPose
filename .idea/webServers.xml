@@ -18,6 +18,14 @@
           <option name="port" value="22" />
         </fileTransfer>
       </webServer>
+      <webServer id="d1bddef0-e6f0-4c67-9944-39f4adf00165" name="aws-cluster" url="http://ec2-3-227-58-202.compute-1.amazonaws.com">
+        <fileTransfer host="ec2-3-227-58-202.compute-1.amazonaws.com" port="22" privateKey="G:\My Drive\AWS\NVir.pem" rootFolder="/mnt/efs/codesPool" accessType="SFTP" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>

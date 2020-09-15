@@ -1,6 +1,7 @@
 '''
 for key points visualization. Also visualizer for visdom class.
 '''
+
 import os
 import os.path as osp
 import cv2
@@ -8,13 +9,24 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+mpl.use('Agg')
+
 import sys
 import ntpath
 import time
 from . import utils_tool, html
 from subprocess import Popen, PIPE
 # from scipy.misc import imresize
+from collections import OrderedDict
 from skimage.transform import resize # misc deprecated e
+import glob
+import datetime
+from tqdm import tqdm
+from scipy.ndimage import zoom
+from sklearn.manifold import TSNE
+import seaborn as sns
+sns.set_style('whitegrid')
+import json
 
 
 def vis_keypoints(img, kps, kps_lines, kp_thresh=0.4, alpha=1):
@@ -400,3 +412,90 @@ class Visualizer():
         print(message)  # print the message
         with open(self.log_name, "a") as log_file:
             log_file.write('%s\n' % message)  # save the message
+
+
+def tsne_plot(folder, output_file_path, ds_li, max_num_samples_per_dataset=30, scaling=[0.5, 0.5, 0.5], sz_font=20, if_prof=False):
+    '''
+    history: 08.25.20, add li_ds to control,  all G_fts number floor(len(G_file)/maxnumber) to sample it.
+    next: save t-sne out, ft_tsne xN, label xN ,  f_nm xN
+    folder: "vis/train"
+    output_file_path: /path/to/plot.png
+    max_num_samples_per_dataset:
+    scaling: scaling factors.
+        example. if features are (2048, 8, 8) and scaling is (0.5, 0.75, 0.25),
+        then features become (1024, 6, 2)
+    :param if_prof: not really run, just check the the number in each ds .
+    '''
+    # print(
+    #     '==== [{}] IMPORTANT. GENERATING TEST PLOT TO {} TO VERIFY VALID DESTINATION BEFORE GOING THROUGH COMPUTATIONS'.format(
+    #         datetime.datetime.now(), output_file_path))
+    # sns.scatterplot(x=[1, 2], y=[1, 2]).get_figure().savefig(output_file_path)
+    # print('==== [{}] Output figure path validated. Continuing with calculations.'.format(datetime.datetime.now()))
+
+    # datasets = os.listdir(folder)  # ['Human36M', ...]
+    datasets = ds_li
+
+    # Load data
+    all_G = []
+    labels = []
+    idxs = []
+
+    print('==== [{}] Loading files from {} datasets'.format(datetime.datetime.now(), len(datasets)))
+
+    for dataset in datasets: #
+        feature_folder = os.path.join(folder, dataset, "G_fts_raw")
+        numpy_files = glob.glob(os.path.join(feature_folder, "*npy"))
+        # np.random.shuffle(numpy_files)    # no use shuffle to fix performance
+        n_file = len(numpy_files)
+        print('{} holds {} files'.format(dataset, n_file))
+        step = int(n_file/float(max_num_samples_per_dataset))     # floor it
+        if not if_prof:  # if not for profiling
+            for file in tqdm(numpy_files[:step*max_num_samples_per_dataset:step], desc=dataset):
+                x = np.load(file)
+                assert x.shape == (2048, 8, 8)
+                all_G.append(x)     # the G features
+                # keep the file name to another list, replace p
+                if '_p' in dataset:
+                    labels.append(dataset[:-3]) # get rid of -p2 thing
+                else:
+                    labels.append(dataset)
+            str_idx = int(file.split('/')[-1][:-4])        # get file name
+            idxs.append(str_idx)   # keep idx
+    if not if_prof: # if not for profiling
+        print('==== [{}] Done loading files. Loaded {} samples.'.format(datetime.datetime.now(), len(all_G)))
+
+        # Reshape
+        print('==== [{}] Downsampling features'.format(datetime.datetime.now()))
+        all_G = zoom(all_G, (1,) + tuple(scaling))
+        print('==== [{}] Done downsampling. Current shape: {}'.format(datetime.datetime.now(), np.shape(all_G)))
+
+        print('==== [{}] Reshaping feature array'.format(datetime.datetime.now()))
+        new_shape = (len(all_G), np.prod(np.shape(all_G)[1:]))  # N x n_fts
+        all_G = np.reshape(all_G, new_shape).astype(float)
+        print('==== [{}] Done reshaping. Current shape: {}'.format(datetime.datetime.now(), np.shape(all_G)))
+
+        # Run t-SNE
+        print('==== [{}] Running t-SNE'.format(datetime.datetime.now()))
+        model = TSNE(n_components=2)
+        output = model.fit_transform(all_G)
+
+        # Plot
+        print('==== [{}] Plotting and saving figure'.format(datetime.datetime.now()))
+        snsplot = sns.scatterplot(x=output[:, 0], y=output[:, 1], hue=labels, alpha=0.7)
+        plt.setp(snsplot.get_legend().get_texts(), fontsize=str(sz_font))  # increase size
+        snsplot.get_figure().savefig(output_file_path, dpi=300)
+        plt.cla()
+        print('==== [{}] Figure saved to {}.'.format(datetime.datetime.now(), output_file_path))
+
+        rst = OrderedDict()
+        rst['fts_tsne'] = output.tolist()       # the translated tsne features
+        rst['labels'] = labels  # string        # idx of 4 sets
+        rst['idxs'] = idxs  # st        # the idx number of the image
+        # rst_fd = osp.join(folder, 'tsne_rst')
+        # if not osp.exists(rst_fd):
+        #     os.makedirs(rst_fd)
+        pth_tsne = osp.join(folder, 'tsne_rst.json')
+        print('==== [{}] tsne saved to {}.'.format(datetime.datetime.now(), pth_tsne))
+        with open(osp.join(folder, 'tsne_rst.json'), 'w') as f:       # can be reploting with rename
+            json.dump(rst, f)
+            f.close()

@@ -9,9 +9,10 @@ from tqdm import tqdm
 from scipy.ndimage import zoom
 from sklearn.manifold import TSNE
 import seaborn as sns
+import matplotlib.pylab as plt
 sns.set_style('whitegrid')
 
-def tsne_plot(folder, output_file_path, max_num_samples_per_dataset, scaling=[0.5, 0.5, 0.5]):
+def tsne_plot(folder, output_file_path, max_num_samples_per_dataset, scaling=[0.5, 0.5, 0.5], sz_font=20):
     '''
     folder: "vis/train"
     output_file_path: /path/to/plot.png
@@ -63,6 +64,7 @@ def tsne_plot(folder, output_file_path, max_num_samples_per_dataset, scaling=[0.
     # Plot
     print('==== [{}] Plotting and saving figure'.format(datetime.datetime.now()))
     snsplot = sns.scatterplot(x=output[:, 0], y=output[:, 1], hue=labels, alpha=0.7)
+    plt.setp(snsplot.get_legend().get_texts(), fontsize = str(sz_font))     # increase size
     snsplot.get_figure().savefig(output_file_path, dpi=300)
     print('==== [{}] Figure saved to {}.'.format(datetime.datetime.now(), output_file_path))
 

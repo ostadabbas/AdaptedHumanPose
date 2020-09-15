@@ -47,8 +47,8 @@ def main():
 	itr_per_epoch = math.ceil(
 		adpDs_train_li[0].__len__() / opts.num_gpus / (opts.batch_size // len(opts.trainset)))  # get the longest one
 	if opts.trainIter > 0:
-		itr_per_epoch = min(itr_per_epoch, opts.trainIter)
-
+		# itr_per_epoch = min(itr_per_epoch, opts.trainIter)
+		itr_per_epoch = opts.trainIter  # hard set iteration number
 	# make models with opt specific
 	model = TaskGenNet(opts) # with initialization already, already GPU-par
 	if 0 == opts.start_epoch and 'y' != opts.if_scraG:

@@ -13,6 +13,7 @@ from math import floor
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from utils import utils_pose
+from utils import utils_tool as ut_t
 
 candidate_sets = ['Human36M', 'ScanAva', 'MPII', 'MSCOCO', 'MuCo', 'MuPoTS', 'SURREAL']
 
@@ -26,7 +27,7 @@ class AdpDataset_3d(Dataset):
 	'''
 
 	def __init__(self, db, ref_joints_name, is_train, transform=None, opts={}):
-		self.db = db.data
+		self.db = db.data       # get data inherer
 		self.joint_num = db.joint_num
 		self.skeleton = db.skeleton
 		self.flip_pairs = db.flip_pairs
@@ -34,6 +35,7 @@ class AdpDataset_3d(Dataset):
 		self.if_SYN = db.if_SYN  # ds determined
 		self.joints_name = db.joints_name
 		self.ref_joints_name = ref_joints_name
+		self.joint_num_ref = len(ref_joints_name)   # should be 17  for wht gen
 		if not transform:  # if not given, give tensor normalization to overide
 			transform = transforms.Compose([
 				transforms.ToTensor(),
@@ -49,7 +51,7 @@ class AdpDataset_3d(Dataset):
 			self.do_augment = False
 
 	def __getitem__(self, index):
-		joint_num = self.joint_num
+		joint_num = self.joint_num      # the ds jt number instead of output
 		skeleton = self.skeleton
 		flip_pairs = self.flip_pairs
 		joints_have_depth = self.joints_have_depth
@@ -58,6 +60,7 @@ class AdpDataset_3d(Dataset):
 		bbox = data['bbox']  # give some default one for this in case not in there
 		joint_img = data['joint_img']
 		joint_vis = data['joint_vis']
+		joint_num_ref = self.joint_num_ref
 		# if 'boneLen' in data.keys():
 		# 	boneLen = data['boneLen']   # bone length
 		# else:
@@ -107,7 +110,7 @@ class AdpDataset_3d(Dataset):
 
 		for i in range(len(joint_img)):
 			joint_img[i, 2] = (joint_img[i, 2] + 1.0) / 2.  # 0~1 normalize
-			joint_vis[i] *= (
+			joint_vis[i] *= (       # & bitwise operation  , parenthesis ofr priority over &
 					(joint_img[i, 0] >= 0) & \
 					(joint_img[i, 0] < self.opts.input_shape[1]) & \
 					(joint_img[i, 1] >= 0) & \
@@ -129,9 +132,9 @@ class AdpDataset_3d(Dataset):
 		vis = False
 		if vis:
 			vis_3d_skeleton(joint_img, joint_vis, skeleton, filename)
-
+		joint_img_ori = joint_img.copy()        # raw image
 		# change coordinates to output space the hmap space (usually 64 or 32 )
-		joint_img[:, 0] = joint_img[:, 0] / self.opts.input_shape[1] * self.opts.output_shape[1]
+		joint_img[:, 0] = joint_img[:, 0] / self.opts.input_shape[1] * self.opts.output_shape[1]    # 64 x 64
 		joint_img[:, 1] = joint_img[:, 1] / self.opts.input_shape[0] * self.opts.output_shape[0]
 		joint_img[:, 2] = joint_img[:, 2] * self.opts.depth_dim  # 0 ~ depth_dim
 
@@ -146,11 +149,48 @@ class AdpDataset_3d(Dataset):
 		joint_img = joint_img.astype(np.float32)  # x,y,z, hm
 		joint_vis = (joint_vis > 0).astype(np.float32)
 		joints_have_depth = np.array([joints_have_depth]).astype(np.float32)  # into 1 D array
-		if_SYN = np.array([if_SYN]).astype(np.float32)  # bool -> float32
+		if_SYN = np.array([if_SYN]).astype(np.float32)  # bool -> float32,   to a 1D vec, to concate to N x1 (1 class)
+
+		# make gauss_hm # n_stg:4 x n_jt:17 [sz * sz]
+		# shp_t = self.opts.output_shape
+
+		wht = np.zeros([joint_num_ref, 8, 8])   # n_jt x 8 x 8  hardwired features space
+		# print(joint_img)
+		for i, coord in enumerate(joint_img):     # hm all empty?
+			coord = np.round(coord / 8).astype(int)
+			# print(coord)
+			# rst_andS = coord[0] >= 0 & coord[0] < 8 & coord[1] >= 0 & coord[1] < 8  # always false
+			# print(rst_andS)
+			if coord[0]>=0 and coord[0]<8 and coord[1]>=0 and coord[1]<8:
+				wht[i, coord[1], coord[0]] = 1  # all 0 ???
+				# print('wht {} {} {} to 1'.format(i, coord[1], coord[0]))
+		wht = wht.astype(np.float32)
+
+		# if 'n' == self.opts.if_scale_gs:        # hm gaussian,  directly cv resize to other scale directly
+		# 	li2_gs = []
+		# 	li_jts_gauss = []  # for jt geenration
+		# 	for jt in joint_img:    # first layer
+		# 		hm = np.zeros(shp_t)
+		# 		hm = ut_t.draw_gaussian(hm, jt[:2], self.opts.gauss_sigma)
+		# 		li_jts_gauss.append(hm)
+		# 	li2_gs.append(li_jts_gauss)     # list of cv image?
+		# 	sz = [shp_t[1], shp_t[0]]  # to size
+		#
+		# 	for i in range(1, self.opts.n_stg_D):
+		# 		li_jts_t = []
+		# 		sz = [e // 2 for e in sz]  # down two every time, 32, 16, 8
+		# 		for hm in li_jts_gauss: # all from first layers
+		# 			li_jts_t.append(transforms.ToTensor()(cv2.resize(hm, tuple(sz))).double())
+		# 		li2_gs.append(li_jts_t) # add list of tensor?
+		# 	for i, hm in enumerate(li_jts_gauss):
+		# 		li_jts_gauss[i] = transforms.ToTensor()(hm) # to tensor
+		# else:
+		# 	raise ValueError('scale gaussian not implemented yet')
+
 
 		# return img_patch, joint_img, joint_vis, joints_have_depth # single item
 		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis': joint_vis, 'if_depth_v': joints_have_depth,
-		                                  'if_SYN_v': if_SYN}  # only image transformed to tensor other still np
+		                                  'if_SYN_v': if_SYN, 'wts_D':wht, 'joint_img': joint_img_ori}  # only image transformed to tensor other still np,  li2_gs  4x17[ 1x64x64]      # for regression later
 
 	# else:
 	# 	img_patch = self.transform(img_patch)   # optional data feed
@@ -219,7 +259,7 @@ def generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion, input_s
 
 	trans = gen_trans_from_patch_cv(bb_c_x, bb_c_y, bb_width, bb_height, input_shape[1], input_shape[0], scale, rot,
 	                                inv=False)  # is bb aspect needed? yes, otherwise patch distorted
-	img_patch = cv2.warpAffine(img, trans, (int(input_shape[1]), int(input_shape[0])), flags=cv2.INTER_LINEAR)
+	img_patch = cv2.warpAffine(img, trans, (int(input_shape[1]), int(input_shape[0])), flags=cv2.INTER_LINEAR)  # is there channel requirements
 
 	img_patch = img_patch[:, :, ::-1].copy()
 	img_patch = img_patch.astype(np.float32)
@@ -291,9 +331,9 @@ def genDsLoader(opts, mode=0, if_trainShuffle=True):
 		adpDs_li, loader_li, iter_li = [], [], []
 		for i in range(len(opts.trainset)):
 			ds = eval(opts.trainset[i])("train", opts=opts)
-			ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, if_trainShuffle, trans, opts=opts)
+			ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, if_trainShuffle, trans, opts=opts) # if aug here
 			loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
-			                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
+			                    shuffle=if_trainShuffle, num_workers=opts.n_thread, pin_memory=opts.if_pinMem) # ave the batch to each ds
 			itr_loader = iter(loader)       # this is purely ScanAva, why Human36M coco error?!!
 			# to list
 			adpDs_li.append(ds_adp)
@@ -304,14 +344,14 @@ def genDsLoader(opts, mode=0, if_trainShuffle=True):
 		ds = eval(opts.testset)("test", opts=opts)
 		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)
 		loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
-		                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
+		                    shuffle=False, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
 		itr_loader = iter(loader)
 		return ds_adp, loader, itr_loader
 	elif 2 == mode:
 		ds = eval(opts.testset)("testInLoop", opts=opts)
 		ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, False, trans, opts=opts)  # few test in loop
 		loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size // len(opts.trainset),
-		                    shuffle=True, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
+		                    shuffle=False, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
 		itr_loader = iter(loader)
 		return ds_adp, loader, itr_loader
 	else:
@@ -328,14 +368,14 @@ def genLoaderFromDs(ds, trans=None, opts={}, if_train=False):
 	if not trans:  # if not given, give tensor normalization to overide
 		trans = transforms.Compose([
 			transforms.ToTensor(),
-			transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
+			transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])    # no trans give default trans
 	# if 'test' in ds.data_split:
 	# 	is_train = False
 	# else:
 	# 	is_train = True
-	ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, if_train, trans, opts=opts)
+	ds_adp = AdpDataset_3d(ds, opts.ref_joints_name, if_train, trans, opts=opts)    # false train
 	loader = DataLoader(dataset=ds_adp, batch_size=opts.num_gpus * opts.batch_size, shuffle=if_train, num_workers=opts.n_thread, pin_memory=opts.if_pinMem)
-	iterator = iter(loader)
+	iterator = iter(loader)     # shuffle false
 
 	return ds_adp, loader, iterator
 

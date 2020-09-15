@@ -48,12 +48,11 @@ class MuPoTS:
 
     def load_data(self):
         
-        if self.data_split != 'test':
-            print('Unknown data subset')
-            assert 0
-
+        # if 'test' not in self.data_split:       # test in loop also OK
+        #     print('Unknown data subset')
+        #     assert 0
         data = []
-        db = COCO(self.test_annot_path)
+        db = COCO(self.test_annot_path)     # open to train and test
 
         # use gt bbox and root
         if self.opts.use_gt_info:

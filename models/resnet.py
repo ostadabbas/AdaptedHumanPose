@@ -53,17 +53,23 @@ class ResNetBackbone(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        rst = []    # save all intermediate rst
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
         x = self.layer1(x)
+        rst.append(x)
         x = self.layer2(x)
+        rst.append(x)
         x = self.layer3(x)
+        rst.append(x)
         x = self.layer4(x)
+        rst.append(x)
 
-        return x
+        return x        # return single one
+        # return rst      # return a list now
 
     def init_weights(self):
         org_resnet = torch.utils.model_zoo.load_url(model_urls[self.name])

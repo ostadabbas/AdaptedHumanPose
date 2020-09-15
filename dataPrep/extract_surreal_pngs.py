@@ -1,9 +1,14 @@
+'''
+get the png
+'''
 import shutil
 import cv2
 import scipy.io as sio
 import numpy as np
 import glob
 import os
+
+
 
 def configure_output_dirs(input_dir, output_dir):
     ''' We want to copy input dir structure to output dir '''

@@ -182,6 +182,7 @@ class ScanAva:
 	def load_data(self):
 		'''
 		from annotation file, get the sub sampled version, fill joints to std, refine path, regulate key names like C-c, F-f,
+		read all, chose onlny training partition.
 		:return:
 		'''
 		sampling_ratio = self.get_subsampling_ratio()  # 5 or 64 for sub sampling
@@ -237,14 +238,14 @@ class ScanAva:
 			elif w < aspect_ratio * h:
 				w = h * aspect_ratio
 			# I think there is already margin for bb, no need for 1.25?
-			rt_aug = 1.
+			rt_aug = 1. # expand bb
 			bbox[2] = w * rt_aug  # make bb a little larger  1.25
 			bbox[3] = h * rt_aug
 			bbox[0] = c_x - bbox[2] / 2.
 			bbox[1] = c_y - bbox[3] / 2.
 
 			# aggregate to entry , add to data
-			entry['joint_img'] = joint_img
+			entry['joint_img'] = joint_img      # x,y:pix, z:rootC-mm
 			entry['joint_cam'] = joint_cam
 			entry['joint_vis'] = joint_vis
 			entry['img_path'] = img_path
@@ -288,7 +289,8 @@ class ScanAva:
 		else:
 			prt_func = print
 
-		evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=self.action_names, fn_getIdx=self.getNmIdx, opts=self.opts, if_svVis=if_svVis, pth_head=pth_head, fn_prt=prt_func)
+		# evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=self.scanNms, fn_getIdx=self.getNmIdx, opts=self.opts, if_svVis=if_svVis, pth_head=pth_head, fn_prt=prt_func)
+		evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=None, fn_getIdx=None, opts=self.opts, if_svVis=if_svVis, pth_head=pth_head, fn_prt=prt_func)
 
 
 if __name__ == '__main__':

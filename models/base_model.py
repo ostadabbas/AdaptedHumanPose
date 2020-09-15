@@ -265,7 +265,7 @@ class BaseModel(ABC):
 
 		# update scheduler
 		for i in range(0, self.opts.start_epoch -1):       # if we start at n, then step n-1 times, could be warning that step before optimizer, ignore it simply
-			for scheduler in self.schedulers:
+			for scheduler in self.schedulers:       # step to epoch during load
 				scheduler.step()
 
 		# load model, not handel meta and  prior 0.4 problem
@@ -311,3 +311,4 @@ class BaseModel(ABC):
 			if net is not None:
 				for param in net.parameters():
 					param.requires_grad = requires_grad
+

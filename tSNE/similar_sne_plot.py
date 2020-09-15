@@ -11,7 +11,7 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 sns.set_style('whitegrid')
 
-def tsne_plot(folder, output_file_path, max_num_samples_per_dataset, scaling=[0.5, 0.5, 0.5]):
+def tsne_plot(folder, output_file_path, max_num_samples_per_dataset, scaling=[0.5, 0.5, 0.5], sz_font=22):
     '''
     folder: "vis/train"
     output_file_path: /path/to/plot.png

@@ -83,9 +83,9 @@ class SURREAL:
 		if self.data_split == 'train':
 			return self.rt_SYN*self.train_rt
 		elif self.data_split == 'test':
-			return 10
+			return 1
 		elif self.data_split == 'testInLoop':
-			return 100  #
+			return 10  #
 		else:
 			assert 0, print('Unknown subset')
 
@@ -153,7 +153,7 @@ class SURREAL:
 			joint_cam = joint_cam - np.array([0, 0, -camDist*1000])  # in their render they set height to 1000, yet x is misaligned. Yet all train and test is root centered, doesn't hurt.
 			# flip 3d joints of  SURREAL wrong pairs
 			for pair in self.flip_pairs:
-				joint_cam[pair[0], :], joint_cam[pair[1], :] = joint_cam[pair[1], :], joint_cam[pair[0], :].copy()      # L - R ex
+				joint_cam[pair[0], :], joint_cam[pair[1], :] = joint_cam[pair[1], :], joint_cam[pair[0], :].copy()      # L - R exSv
 
 			joint_vis = np.ones((len(joint_img), 1))  # just all visibile
 			# fill joint_img z
@@ -196,8 +196,6 @@ class SURREAL:
 			entry['img_path'] = img_path
 			entry['bbox'] = bbox
 			entry['root_cam'] = joint_cam[self.root_idx]
-			# entry['f'] = annos[i]['F']
-			# entry['c'] = annos[i]['C']
 			entry['f'] = self.f     # use fixed version
 			entry['c'] = self.c
 			data.append(entry)

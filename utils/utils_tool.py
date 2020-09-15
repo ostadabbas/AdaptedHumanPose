@@ -12,6 +12,10 @@ from . import vis
 import cv2
 import matplotlib.pyplot as plt
 from skimage import io, transform, img_as_ubyte
+import subprocess
+import json
+
+
 #
 # def getPCK_single(p1_err,  head_v, dim=3, ref=None):
 # 	'''
@@ -75,6 +79,14 @@ def getPCK_3d(p1_err, ref=tuple(range(0,155,5))):
 	auc = sum(pck_v)/len(pck_v)
 	return pck_v, auc
 
+def li2str(li):
+	'''
+	transfer the lsit into a string. right now is for int only
+	:param li:
+	:return:
+	'''
+	return ''.join([str(e) for e in li])
+
 def getNumInStr(str_in, tp=int):
 	'''
 	get the number in list transferred as type(indicated)
@@ -131,7 +143,7 @@ def tensor2im(input_image, imtype=np.uint8, clipMod='clip01'):
 			image_numpy = (np.transpose(image_numpy, (1, 2, 0)) * 255.0)  # 01 scale directly
 	else:  # if it is a numpy array, do nothing
 		image_numpy = input_image
-	return image_numpy.astype(imtype)
+	return image_numpy.astype(imtype)       # to H,W,C?
 
 
 def diagnose_network(net, name='network'):
@@ -316,7 +328,7 @@ def showJoints(img, joint_img, svPth = None):
 
 def save_2d_tg3d(img_patch, pred_2d, skel, sv_dir, idx='tmp'):
 	'''
-	make joint labeled folder in image, save image into sv_dir/2d/idx.jpg
+	make joint labeled folder in image, save image into sv_dir/2d/idx.jpg tg3d taskgeneration3d
 	:param img_patch: image suppose to be c,w,h rgb numpy
 	:param pred_2d: x,y, score  3xn_jt
 	:param sv_dir:  where to save
@@ -330,7 +342,7 @@ def save_2d_tg3d(img_patch, pred_2d, skel, sv_dir, idx='tmp'):
 
 def save_3d_tg3d(kpt_3d, sv_dir, skel, idx='tmp', suffix=None):
 	'''
-	save 3d plot to designated places.
+	save 3d plot to designated places. sub folder auto generation
 	:param coord_out:
 	:param sv_dir:
 	:param skel:
@@ -407,7 +419,11 @@ def save_Gfts_raw_tg3d(G_fts, sv_dir, idx='tmp'):
 	'''
 	sv_dir_G = osp.join(sv_dir, 'G_fts_raw')
 	make_folder(sv_dir_G)
-	np.save(osp.join(sv_dir_G, str(idx)+'.npy'), G_fts)
+	if type(G_fts) is list:
+		for i, G_ft in enumerate(G_fts):
+			np.save(osp.join(sv_dir_G, str(idx) + '_' + str(i) + '.npy'), G_fts)    # idx_iLayer.jpg formate
+	else:
+		np.save(osp.join(sv_dir_G, str(idx)+'.npy'), G_fts) # right now direct idx.npy
 
 def save_Gfts_tg3d(G_fts, sv_dir, idx='tmp', shape=(5, 5), out_sz=(64, 64)):
 	'''
@@ -415,33 +431,57 @@ def save_Gfts_tg3d(G_fts, sv_dir, idx='tmp', shape=(5, 5), out_sz=(64, 64)):
 	:param G_fts:
 	:param sv_dir_G:
 	:param idx:
-	:param shape: what grid is needed,  first prod(shape) elements will be used to form grid
+	:param shape: what grid is needed,  first prod(shape) elements will be used to form grid, 5x5 grid of G
 	:param out_sz: the output size of the feature map to make it large
 	:return:
 	'''
 	sv_dir_G = osp.join(sv_dir, 'G_fts')
 	make_folder(sv_dir_G)
 	n = np.prod(shape)
-	fts = G_fts[:n]  # only first few
-	n_cols = shape[1]
-	# resize the fts (c last , resize, c back)
-	fts_rsz = transform.resize(fts.transpose((1, 2, 0)), out_sz).transpose((2, 0, 1))
-	# gallery
-	grid = gallery(fts_rsz, n_cols=n_cols)
-	#  cmap = plt.cm.jet        # can also color map it
-	# save
-	norm = plt.Normalize(vmin=grid.min(), vmax=grid.max())
-	io.imsave(osp.join(sv_dir_G, str(idx) + '.png'), img_as_ubyte(norm(grid)))
+	if type(G_fts) is list:     # for list case
+		for i, G_ft in enumerate(G_fts):
+			fts = G_ft[:n]  # only first few
+			n_cols = shape[1]
+			# resize the fts (c last , resize, c back)
+			fts_rsz = transform.resize(fts.transpose((1, 2, 0)), out_sz).transpose((2, 0, 1))
+			# gallery
+			grid = gallery(fts_rsz, n_cols=n_cols)
+			#  cmap = plt.cm.jet        # can also color map it
+			# save
+			norm = plt.Normalize(vmin=grid.min(), vmax=grid.max())
+			io.imsave(osp.join(sv_dir_G, str(idx) + '_' + str(i) + '.png'), img_as_ubyte(norm(grid)))
 
-	# for histogram
-	sv_dir_hist = osp.join(sv_dir, 'hist')
-	make_folder(sv_dir_hist)
-	# hist_G = np.histogram(G_fts)
-	plt.clf()
-	fts_hist = G_fts.flatten()
-	fts_hist = fts_hist[fts_hist>0.1]
-	plt.hist(fts_hist, bins=50)
-	plt.savefig(osp.join(sv_dir_hist, str(idx) + '.png'))
+			# for histogram
+			sv_dir_hist = osp.join(sv_dir, 'hist')
+			make_folder(sv_dir_hist)
+			# hist_G = np.histogram(G_fts)
+			plt.clf()
+			fts_hist = G_fts.flatten()
+			fts_hist = fts_hist[fts_hist > 0.1]
+			plt.hist(fts_hist, bins=50)
+			plt.savefig(osp.join(sv_dir_hist, str(idx) + '_' + str(i) + '.png'))
+
+	else:
+		fts = G_fts[:n]  # only first few
+		n_cols = shape[1]
+		# resize the fts (c last , resize, c back)
+		fts_rsz = transform.resize(fts.transpose((1, 2, 0)), out_sz).transpose((2, 0, 1))
+		# gallery
+		grid = gallery(fts_rsz, n_cols=n_cols)
+		#  cmap = plt.cm.jet        # can also color map it
+		# save
+		norm = plt.Normalize(vmin=grid.min(), vmax=grid.max())
+		io.imsave(osp.join(sv_dir_G, str(idx) + '.png'), img_as_ubyte(norm(grid)))
+
+		# for histogram
+		sv_dir_hist = osp.join(sv_dir, 'hist')
+		make_folder(sv_dir_hist)
+		# hist_G = np.histogram(G_fts)
+		plt.clf()
+		fts_hist = G_fts.flatten()
+		fts_hist = fts_hist[fts_hist>0.1]
+		plt.hist(fts_hist, bins=50)
+		plt.savefig(osp.join(sv_dir_hist, str(idx) + '.png'))
 
 def gallery(array, n_cols=5):
 	nindex, height, width = array.shape[:3]
@@ -464,3 +504,65 @@ def gallery(array, n_cols=5):
 		          .swapaxes(1, 2)
 		          .reshape(height * nrows, width * n_cols))
 	return result
+
+
+def draw_gaussian(heatmap, center, sigma):
+	'''
+	will  affect original image
+	:param heatmap:
+	:param center:
+	:param sigma:
+	:return:
+	'''
+	tmp_size = sigma * 3
+	mu_x = int(center[0] + 0.5)
+	mu_y = int(center[1] + 0.5)
+	w, h = heatmap.shape[0], heatmap.shape[1]
+	ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)] # h , w coordinate  left up corner
+	br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
+	if ul[0] >= h or ul[1] >= w or br[0] < 0 or br[1] < 0:  # so ul coord as height and width
+		return heatmap
+	size = 2 * tmp_size + 1
+	x = np.arange(0, size, 1, np.float32)
+	y = x[:, np.newaxis]
+	x0 = y0 = size // 2
+	g = np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+	g_x = max(0, -ul[0]), min(br[0], h) - ul[0]
+	g_y = max(0, -ul[1]), min(br[1], w) - ul[1]
+	img_x = max(0, ul[0]), min(br[0], h)
+	img_y = max(0, ul[1]), min(br[1], w)
+	try:
+		heatmap[img_y[0]:img_y[1], img_x[0]:img_x[1]] = np.maximum(
+			heatmap[img_y[0]:img_y[1], img_x[0]:img_x[1]],
+			g[g_y[0]:g_y[1], g_x[0]:g_x[1]])
+	except:
+		print('center', center)
+		print('gx, gy', g_x, g_y)
+		print('img_x, img_y', img_x, img_y)
+	return heatmap
+
+
+def sv_json(rst_dir, pth_head, rst, sv_nm):
+	pth = osp.join(rst_dir, '_'.join([pth_head, sv_nm + '.json']))
+	print('save result to {}'.format(pth))
+	with open(pth, 'w') as f:
+		json.dump(rst, f)
+
+def get_gpu_memory_map():
+	"""Get the current gpu usage.
+
+	Returns
+	-------
+	usage: dict
+		Keys are device ids as integers.
+		Values are memory usage as integers in MB.
+	"""
+	result = subprocess.check_output(
+		[
+			'nvidia-smi', '--query-gpu=memory.used',
+			'--format=csv,nounits,noheader'
+		], encoding='utf-8')
+	# Convert lines into a dictionary
+	gpu_memory = [int(x) for x in result.strip().split('\n')]
+	gpu_memory_map = dict(zip(range(len(gpu_memory)), gpu_memory))
+	return gpu_memory_map

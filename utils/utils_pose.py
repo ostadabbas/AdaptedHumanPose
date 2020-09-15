@@ -111,6 +111,13 @@ def nameToIdx(name_tuple, joints_name):     # test, tp,
 		return tuple(jtNm.index(tpl) for tpl in name_tuple)
 
 def transform_joint_to_other_db(src_joint, src_name, dst_name):
+	'''
+	loop source name, find index in new, assign value to that position
+	:param src_joint:
+	:param src_name:
+	:param dst_name:
+	:return:
+	'''
 	src_joint_num = len(src_name)
 	dst_joint_num = len(dst_name)
 
@@ -218,3 +225,33 @@ def get_boneLen_av(annos, skel, dim=2, fn_getIdx= None, jtNm='joint_cam'):
 		for k in boneSum_dict:
 			boneSum_dict[k] = float(boneSum_dict[k]) / n_dict[k]
 	return bone_av, boneSum_dict
+
+def get_l_skels(jts, skels, skel_norm_pair):
+	'''
+	from the jts, calculate the normrlized skel length.  skels give sthe list of  idx  paris of skels.
+	skel_norm gives the idx pair of normallized  skel jt.
+	:param jts:
+	:param skels:
+	:param skel_norm_pair: the joint pair for normalization skeleton
+	:return: return the skels vector as len(skels)
+	'''
+	skel_norm = np.linalg.norm(jts[skel_norm_pair[0]] - jts[skel_norm_pair[1]])
+	skels = np.array(skels)     #  N x  2
+	l_skels = np.linalg.norm(jts[skels[:,0]] - jts[skels[:,1]], axis=1)/skel_norm
+	return l_skels
+
+def get_l_skels_tch(jts, skels, skel_norm_pair=None):
+	'''
+	from the jts, calculate the normrlized skel length.  skels give sthe list of  idx  paris of skels.
+	skel_norm gives the idx pair of normallized  skel jt. the tensor version, with the batch leading dim.
+	:param jts:
+	:param skels:
+	:param skel_norm_pair: the joint pair for normalization skeleton
+	:return: return the skels vector as len(skels)
+	'''
+
+	skel_norm = (jts[:, skel_norm_pair[0]] - jts[:, skel_norm_pair[1]]).norm(dim=-1).view(-1, 1)     # the N x 1 vector
+	skels = np.array(skels)
+	l_skels = (jts[:, skels[:,0]] - jts[:, skels[:, 1]]).norm(dim=-1)/skel_norm     # N x  n_skel
+	return l_skels      # N x l_skel
+

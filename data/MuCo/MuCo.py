@@ -4,18 +4,18 @@ import numpy as np
 import math
 from utils.utils_pose import get_bbox
 from pycocotools.coco import COCO
-# from config import cfg
+from utils.evaluate import evaluate
 
 class MuCo:  # we don't use this one, so not processed
     if_SYN = False
     joints_have_depth = True
     # joints_name = (
     # 'Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee',
-    # 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe')  #  original the head top and head is not correct
+    # 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe')  #  original the head top and head is not same as h36m template
     joints_name = (
     'Head', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee',
     'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Torso', 'Neck', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe')  # what is head and head top
-
+    boneLen2d_av_mm = 3600  # MuPoTs one need to recalculate if needed
     def __init__(self, data_split, opts={}):
         self.data_split = data_split
         self.ds_dir = opts.ds_dir
@@ -31,12 +31,12 @@ class MuCo:  # we don't use this one, so not processed
         self.data = self.load_data()
 
     def load_data(self):
-
-        if self.data_split == 'train':
-            db = COCO(self.train_annot_path)
-        else:
-            print('Unknown data subset')
-            assert 0
+        # if self.data_split == 'train':      # only train part avaialbe
+        #     db = COCO(self.train_annot_path)
+        # else:
+        #     print('Unknown data subset')
+        #     assert 0
+        db = COCO(self.train_annot_path)        # all session can use this
 
         data = []
         for iid in db.imgs.keys():
@@ -121,4 +121,31 @@ class MuCo:  # we don't use this one, so not processed
 
         return data
 
+    def evaluate(self, preds, **kwargs):
+        '''
+		rewrite this one. preds follow opts.ref_joint,  gt transfer to ref_joints, taken with ref_evals_idx. Only testset will calculate the MPJPE PA to prevent the SVD diverging during training.
+		:param preds: xyz HM
+		:param kwargs:  jt_adj, logger_test, if_svEval,  if_svVis
+		:return:
+		'''
+        jt_adj = kwargs.get('jt_adj', None)
+        logger_test = kwargs.get('logger_test', None)
+        if_svEval = kwargs.get('if_svEval', False)
+        if_svVis = kwargs.get('if_svVis', False)
+        pth_head = kwargs.get('pth_hd')
 
+        print('Evaluation start...')
+        gts = self.data
+        assert (len(preds) <= len(gts))  # can be smaller, preds_hm!!
+
+        if self.data_split == 'test':
+            if_align = True
+        else:
+            if_align = False  # for slim evaluation
+
+        if logger_test:
+            prt_func = logger_test.info
+        else:
+            prt_func = print
+        evaluate(preds, gts, self.joints_name, if_align=if_align, act_nm_li=None, fn_getIdx=None,
+                 opts=self.opts, if_svVis=if_svVis, pth_head=pth_head, fn_prt=prt_func)

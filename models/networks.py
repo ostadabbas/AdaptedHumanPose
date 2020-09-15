@@ -203,7 +203,78 @@ def pm_G(input_nc, output_nc, ngf, n_stg=3, norm='batch', use_dropout=False, ini
     return net
     # return init_net(net, init_type, init_gain, gpu_ids) # init can be separated so wrap the Unet here  G = net + init
 
-def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
+# SA to a class
+class D_SA(nn.Module):
+    def __init__(self, li_ch_inp, n_sa=17, stgs_D=[1,0,0,0], n_layer=3, stride=1):
+        '''
+        semantic aware discriminator for multi-stage gaussian version.
+        :param li_ch_inp:  the input channels of each stage.
+        :param n_sa:    the number of semantic entities
+        :param n_layer:    layer of the basic network
+        :return: return ModuleList(ML) ->  ML[n_li_ch *ML[n_sa]
+        '''
+        super(D_SA, self).__init__()
+        self.n_sa = n_sa        # how many semantic
+
+        # full D version
+        # li_D = nn.ModuleList([
+        #     nn.ModuleList([D_SA_blk(ch, n_layer=n_layer, stride=stride) for i in range(n_sa)])
+        #     for ch in li_ch_inp]) # 4x 17  64 , 128
+        # 4 stg ->  17 jts ->
+
+        # slim version
+        self.stgs_D = stgs_D
+        li_D = nn.ModuleList()  # if not used then empty
+        for i, ch in enumerate(li_ch_inp):
+            if stgs_D[i]:
+                li_jt = nn.ModuleList([D_SA_blk(ch, n_layer=n_layer, stride=stride) for j in range(n_sa)])      # 16 jts
+            else:
+                li_jt = nn.ModuleList()   # empty
+            li_D.append(li_jt)
+        self.model = li_D
+
+    def forward(self, li_stg):
+        rst = []
+        for i, ft in enumerate(li_stg):     # a list of features
+            rst_stg = []
+            if self.stgs_D[i]:      # there is disc
+                for j in range(self.n_sa):
+                    rst_stg.append(self.model[i][j](ft))    # input 30 x256 expect to have 64 channels?
+            rst.append(rst_stg) # otherwise keep empty value
+        return rst
+
+
+
+
+def D_SA_blk(n_ch, n_f=64, n_layer=3, stride=1):
+    '''
+    bulding block for D_SA
+    :param n_ch:  input channel
+    :param n_f: the common fts in the net
+    :param n_layer:
+    :param if_upCh: if double the ch each step, no , too large actually
+    :return:
+    '''
+    kw = 3  # original 4
+    padw = 1
+    li_module = [nn.Conv2d(n_ch, n_f, kernel_size=kw, stride=stride, padding=padw), nn.LeakyReLU(0.2, True)]
+    mul = 1
+    mul_pre = 1 # no use, but easy for understanding
+    for i in range(1, n_layer):
+        mul_pre = mul
+        mul = min(2 ** i,  8)
+        li_module += [
+            nn.Conv2d(n_f*mul_pre, n_f*mul, kernel_size=kw, stride=stride, padding=padw),
+            nn.BatchNorm2d(n_f * mul),
+            nn.LeakyReLU(0.2, True) # true in place
+        ]
+
+    li_module += [
+        nn.Conv2d(n_f * mul, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+    model = nn.Sequential(*li_module)
+    return model
+
+def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[], ch_out=1, kn_D=1):
     """Create a discriminator
 
     Parameters:
@@ -241,7 +312,11 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
     elif netD == 'n_layers':  # more options
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
     elif netD == 'pixel':     # classify if each pixel is real or fake
-        net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
+        net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer, ch_out=ch_out)   # only pixel has ch_out right now
+    elif netD == 'convD':     # classify if each pixel is real or fake
+        net = ConvD(input_nc, ndf, norm_layer=norm_layer, ch_out=ch_out, n_layers=n_layers_D, kn_D=kn_D)   # only pixel has ch_out right now
+    elif netD == 'convD_C1':     # classify if each pixel is real or fake
+        net = ConvD_C1(input_nc, ndf, norm_layer=norm_layer, ch_out=ch_out, n_layers=n_layers_D, kn_D=kn_D)   # only pixel has ch_out right now
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % net)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -898,8 +973,9 @@ class UnetSkipConnectionBlock(nn.Module):
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator"""
 
-    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, stride=1):
         """Construct a PatchGAN discriminator
+        hist: add stride control to be 1
 
         Parameters:
             input_nc (int)  -- the number of channels in input images
@@ -913,16 +989,16 @@ class NLayerDiscriminator(nn.Module):
         else:
             use_bias = norm_layer != nn.BatchNorm2d
 
-        kw = 3      # original 4
+        kw = 3      # original 4, will shrink.
         padw = 1
-        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=stride, padding=padw), nn.LeakyReLU(0.2, True)]
         nf_mult = 1
         nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8)
             sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=stride, padding=padw, bias=use_bias),
                 norm_layer(ndf * nf_mult),
                 nn.LeakyReLU(0.2, True)
             ]
@@ -944,16 +1020,19 @@ class NLayerDiscriminator(nn.Module):
 
 
 class PixelDiscriminator(nn.Module):
-    """Defines a 1x1 PatchGAN discriminator (pixelGAN)"""
+    """Defines a 1x1 PatchGAN discriminator (pixelGAN)
+    history: 8/16/20, ch_out control the output channel
+    """
 
-    def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d):
-        """Construct a 1x1 PatchGAN discriminator
+    def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d, ch_out=1):
+        """Construct a 1x1 PatchGAN discriminator, 3 layers
 
         Parameters:
             input_nc (int)  -- the number of channels in input images
             ndf (int)       -- the number of filters in the last conv layer
             norm_layer      -- normalization layer
         """
+
         super(PixelDiscriminator, self).__init__()
         if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
             use_bias = norm_layer.func != nn.InstanceNorm2d
@@ -966,10 +1045,136 @@ class PixelDiscriminator(nn.Module):
             nn.Conv2d(ndf, ndf * 2, kernel_size=1, stride=1, padding=0, bias=use_bias),
             norm_layer(ndf * 2),
             nn.LeakyReLU(0.2, True),
-            nn.Conv2d(ndf * 2, 1, kernel_size=1, stride=1, padding=0, bias=use_bias)]
+            nn.Conv2d(ndf * 2, ch_out, kernel_size=1, stride=1, padding=0, bias=use_bias)]
 
         self.net = nn.Sequential(*self.net)
 
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
+
+class ConvD(nn.Module):
+    """pure conv discriminator , similar to pixel one, but with flexible kernel size and layer control, and stride
+    default in pixel gan format
+    """
+
+    def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d, ch_out=1, n_layers=3, kn_D=1, stride=1, opts=None):
+        """
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            ndf (int)       -- the number of filters in the last conv layer
+            norm_layer      -- normalization layer
+        """
+        super(ConvD, self).__init__()
+        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+            use_bias = norm_layer.func != nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer != nn.InstanceNorm2d
+
+        kw = kn_D  # original 4, will shrink.
+        padw = int((kn_D-1)/2)
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=stride, padding=padw), nn.LeakyReLU(0.2, True)]     # intermediate 2048 -> 64
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):  # gradually increase the number of filters
+            nf_mult_prev = nf_mult
+            nf_mult = min(2 ** n, 8)
+            sequence += [
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=stride, padding=padw,
+                          bias=use_bias),
+                norm_layer(ndf * nf_mult),
+                nn.LeakyReLU(0.2, True)
+            ]
+
+        nf_mult = min(2 ** (n_layers-1), 8)
+
+        # branch out
+
+
+        # original design
+        sequence += [
+            nn.Conv2d(ndf * nf_mult, ch_out, kernel_size=kw, stride=stride, padding=padw)]  # output 1 channel prediction map
+        self.model = nn.Sequential(*sequence)       # last layer simplify it
+
+    def forward(self, input):
+        """Standard forward."""
+        return self.model(input)
+
+
+class ConvD_C1(nn.Module):
+    """convD structure with C1 added for whole image classification. share bb_D. two output
+    """
+
+    def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d, ch_out=1, n_layers=3, kn_D=1, stride=1):
+        """
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            ndf (int)       -- the number of filters in the last conv layer
+            norm_layer      -- normalization layer
+        """
+        super(ConvD_C1, self).__init__()
+        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+            use_bias = norm_layer.func != nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer != nn.InstanceNorm2d
+
+        kw = kn_D  # original 4, will shrink.
+        padw = int((kn_D - 1) / 2)
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=stride, padding=padw),
+                    nn.LeakyReLU(0.2, True)]  # intermediate 2048 -> 64
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):  # gradually increase the number of filters
+            nf_mult_prev = nf_mult
+            nf_mult = min(2 ** n, 8)
+            sequence += [
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=stride, padding=padw,
+                          bias=use_bias),
+                norm_layer(ndf * nf_mult),
+                nn.LeakyReLU(0.2, True)
+            ]
+        # add one to reduce the ch  to ndf
+        nf_mult_prev = nf_mult
+        nf_mult = min(2 ** (n_layers - 1), 8)
+        sequence += [
+            nn.Conv2d(ndf * nf_mult_prev, ndf, kernel_size=kw, stride=stride, padding=padw,
+                      bias=use_bias),
+            norm_layer(ndf),
+            nn.LeakyReLU(0.2, True)
+        ]
+
+        # bb_D
+        self.bb_D = nn.Sequential(*sequence)
+
+        # head c1
+        nr_fc = 20
+        seq_c1 = [
+            nn.Linear(ndf*8*8, nr_fc),
+            # norm_layer(nr_fc),        # not working possibly the 2D issue
+            nn.BatchNorm1d(nr_fc),
+            nn.LeakyReLU(0.2, True),
+            nn.Linear(nr_fc, 1)
+        ]
+        self.ft_fc_len = ndf * 8 * 8
+        self.head_C1 = nn.Sequential(*seq_c1)       # conventional 1 output
+
+        # head Pch
+        self.head_pch = nn.Conv2d(ndf, ch_out, kernel_size=kw, stride=stride, padding=padw)
+
+        # original design
+        # sequence += [
+        #     nn.Conv2d(ndf * nf_mult, ch_out, kernel_size=kw, stride=stride,
+        #               padding=padw)]  # output 1 channel prediction map
+        # self.model = nn.Sequential(*sequence)  # last layer simplify it
+
+    def forward(self, input):
+        """Standard forward."""
+        # original
+        # return self.model(input)
+
+        # branch out
+        ft = self.bb_D(input)
+        C1 = self.head_C1(ft.view(-1, self.ft_fc_len))          # expec 4d get 2D instead
+        pch = self.head_pch(ft)
+
+        return pch, C1      # return two

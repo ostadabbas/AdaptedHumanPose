@@ -30,8 +30,11 @@ def main():
 	gpu_ids_str = [str(i) for i in opts.gpu_ids]
 	os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(gpu_ids_str)  #
 	print('>>> Using GPU: {}'.format(gpu_ids_str))
+	print('saving result to {}'.format(opts.exp_dir))
 	cudnn.fastest = True
 	cudnn.benchmark = True
+	# clean up the cache
+	torch.cuda.empty_cache()
 
 	# logger
 	logger_train = Colorlogger(opts.log_dir, 'train_logs.txt')
@@ -41,13 +44,14 @@ def main():
 
 	# make dtLoader for train and gen a test set instance
 	adpDs_train_li, loader_train_li, iter_train_li = genDsLoader(opts, mode=0)  # train loader
-	ds_test = eval(opts.testset)("test", opts=opts) # keep a test set
-	ds_testInLoop = eval(opts.testset)("testInLoop", opts=opts) # keep a test set
+	ds_test = eval(opts.testset)("test", opts=opts) # keep a test set default h36m
+	ds_testInLoop = eval(opts.testset)("testInLoop", opts=opts) # keep a test set, ds load reduce the size
 
 	itr_per_epoch = math.ceil(
 		adpDs_train_li[0].__len__() / opts.num_gpus / (opts.batch_size // len(opts.trainset)))  # get the longest one
 	if opts.trainIter > 0:
-		itr_per_epoch = min(itr_per_epoch, opts.trainIter)
+		# itr_per_epoch = min(itr_per_epoch, opts.trainIter)    # smaller one
+		itr_per_epoch =opts.trainIter       # hard set it
 
 	# make models with opt specific
 	model = TaskGenNet(opts) # with initialization already, already GPU-par
@@ -79,7 +83,10 @@ def main():
 	# loop epoch
 	if opts.epoch_step > 0:
 		end_epoch = min(opts.end_epoch, opts.start_epoch + opts.epoch_step)
+	else:
+		end_epoch = opts.end_epoch
 	epoch = opts.start_epoch        # initalize in case no loop at all
+
 	for epoch in range(opts.start_epoch, end_epoch):
 		# update all states, if regress depth ...
 		epoch_timer.tic()
@@ -94,12 +101,13 @@ def main():
 		for itr in range(itr_per_epoch):  #
 			# init list, iter bach concate from all set (add if_SYN)
 			input_img_list, joint_img_list, joint_vis_list, joints_have_depth_list = [], [], [], []
+			wts_list = []
 			if_SYN_list = []
 			total_iters += 1
 			tot_timer.tic()
 			read_timer.tic()
 
-			for i in range(len(opts.trainset)):  # loop set
+			for i in range(len(opts.trainset)):  # loop set each iter combine the data
 				try:
 					# input_img, joint_img, joint_vis, joints_have_depth, if_SYNs = next(iter_train_li[i])  # iter b
 					input, target = next(iter_train_li[i])
@@ -114,12 +122,19 @@ def main():
 				joint_vis = target['vis']
 				joints_have_depth = target['if_depth_v']
 				if_SYN = target['if_SYN_v']
+				# li2_gs_in = target['li2_gs']
+				wts = target['wts_D']
 
 				input_img_list.append(input_img)
 				joint_img_list.append(joint_img)
 				joint_vis_list.append(joint_vis)
 				joints_have_depth_list.append(joints_have_depth)
 				if_SYN_list.append(if_SYN)
+				wts_list.append(wts)
+				# update li2_gs
+				# for i in range(opts.n_stg_D):
+				# 	for j in range(opts.ref_joints_num):
+				# 		li2_gs_clct[i][j].append(li2_gs_in[i][j])
 
 			# aggregate items from different datasets into one single batch
 			input_img = torch.cat(input_img_list, dim=0)
@@ -127,12 +142,17 @@ def main():
 			joint_vis = torch.cat(joint_vis_list, dim=0)
 			joints_have_depth = torch.cat(joints_have_depth_list, dim=0)
 			if_SYNs = torch.cat(if_SYN_list, dim=0)
+			wts = torch.cat(wts_list, dim=0)
+
+			# for i in range(opts.n_stg_D):
+			# 	for j in range(opts.ref_joints_num):
+			# 		li2_gs_clct[i][j] = torch.cat(li2_gs_clct[i][j], dim=0)
 
 			# shuffle items from different datasets, one batch is uselss...whatever
 			rand_idx = []
 			for i in range(len(opts.trainset)):
 				rand_idx.append(torch.arange(i, input_img.shape[0], len(
-					opts.trainset)))  # len(trainSet) interval 0,2,4,....then [1,3,5...]  not necessary batch is not input channel actually
+					opts.trainset)))  # len(trainSet) interval 0,2,4,....then [1,3,5...]  not necessary batch is not input channel actually, first of each set next to each other
 			rand_idx = torch.cat(rand_idx, dim=0)
 			rand_idx = rand_idx[torch.randperm(input_img.shape[0])]
 			input_img = input_img[rand_idx];
@@ -140,10 +160,17 @@ def main():
 			joint_vis = joint_vis[rand_idx];
 			joints_have_depth = joints_have_depth[rand_idx];
 			if_SYNs = if_SYNs[rand_idx]
+			wts = wts[rand_idx]
+			# for i in range(opts.n_stg_D):
+			# 	for j in range(opts.ref_joints_num):
+			# 		li2_gs_clct[i][j] = li2_gs_clct[i][j][rand_idx]
 
 			# recompose for input
-			input = {'img_patch':input_img}     # dict input , target for train
-			target = {'joint_hm': joint_img, 'vis': joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v': if_SYNs}
+			if False:
+				print(wts[0].sum())     #  check wts
+			input = {'img_patch': input_img}     # dict input , target for train
+			# target = {'joint_hm': joint_img, 'vis': joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v': if_SYNs, 'li2_gs':li2_gs_clct}
+			target = {'joint_hm': joint_img, 'vis': joint_vis, 'if_depth_v': joints_have_depth, 'if_SYN_v': if_SYNs, 'wts_D': wts}
 
 			rd_tm = read_timer.toc()
 			gpu_timer.tic()
@@ -159,6 +186,9 @@ def main():
 			# train process
 			model.set_input(input, target)
 			model.optimize_parameters()
+			if itr == 0 and True:        #  for mem test
+				print("test mem usage")
+				print(ut_t.get_gpu_memory_map())
 
 			gpu_tm = gpu_timer.toc()
 			# get all losses from model L_G, L_D, L_total, from model
@@ -198,6 +228,7 @@ def main():
 				vis_dict={'2d': img_2d[:, :, ::-1], '3d': img_3d[:, :, ::-1]}     # use the skimage RGB, seems visome likes that
 				visualizer.display_current_results(vis_dict, epoch, False)
 				visualizer.plot_current_losses(epoch, float(itr)/itr_per_epoch, losses)
+		# test in loop
 		logger_test.info('testInLoop Epoch {}'.format(epoch))
 		err_dict = testLoop(model, ds_testInLoop, opts=opts, logger_test=logger_test) # loop, preds, eval, print and vis
 		if type(err_dict) == dict:
@@ -222,11 +253,11 @@ def main():
 		logger_train.info('epoch actual total time {}'.format(epoch_timer.toc()))
 
 	# final save for model and visualizer both
-	if end_epoch > opts.start_epoch:  # epoch will have some values then
+	if end_epoch > opts.start_epoch:  # finally if end>start, means some training really happens
 		model.save_networks(epoch)  #
 		if opts.display_id > 0:
 			vis_dict = {}
-			sv_keys = ['plot_data', 'evals']
+			sv_keys = ['plot_data', 'evals']        # save the visualizer data
 			for key in sv_keys:
 				vis_dict[key] = getattr(visualizer, key, None)  # at least None is saved?
 			np.save(osp.join(opts.vis_dir, 'vis_{}.npy'.format(epoch)), vis_dict)

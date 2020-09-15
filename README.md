@@ -1,200 +1,98 @@
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/camera-distance-aware-top-down-approach-for-1/3d-multi-person-pose-estimation-absolute-on)](https://paperswithcode.com/sota/3d-multi-person-pose-estimation-absolute-on?p=camera-distance-aware-top-down-approach-for-1)
+# Adapted Human Pose (AHuP): 3D Human Pose Estimation with Zero Real 3D Human Pose Data
+![poseDemo](imgs/poseDemo.PNG)
+## Intro:
+AHuP aims at study the effect when a pretrained human pose estimation model is applied under a new environment and the corresponding adaptation approach.  Our working example is from Synthetic human to estimate real human which differes greatly in appearance and also hold "stiff" poses with over simplified skeleton.  Based on this without a single real 3D human data, we achieved comparable performance with the state-of-the-art model based on real human pose data on corresponding benchmarks.  
 
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/camera-distance-aware-top-down-approach-for-1/3d-multi-person-pose-estimation-root-relative)](https://paperswithcode.com/sota/3d-multi-person-pose-estimation-root-relative?p=camera-distance-aware-top-down-approach-for-1)
+## Env Setup 
+The required packages are provided in the requirementes.txt 
+Here are some tips for installation. 
 
-# PoseNet of "Camera Distance-aware Top-down Approach for 3D Multi-person Pose Estimation from a Single RGB Image"
-
-<p align="center">
-<img src="https://cv.snu.ac.kr/research/3DMPPE/figs/qualitative_intro.PNG" width="800" height="300">
-</p>
-
-<p align="middle">
-<img src="https://cv.snu.ac.kr/research/3DMPPE/figs/video1.gif" width="400" height="300"> <img src="https://cv.snu.ac.kr/research/3DMPPE/figs/video2.gif" width="400" height="300">
-</p>
-
-## changes, need to do 
+For cocoapi for windows: 
 * install the [cocoapi](https://github.com/philferriere/cocoapi)
    this version supports windows. For linux, you can also use the offical release.    
-cd to folder pythonAPI  
-`python setup.py install`
-will install package to python packages. 
+install the cocoapi
 
-`scripts` for independent training scripts. 
-`scripts_v2` is built to accept 'train' or 'test' arguments. 
+`pip install git+https://github.com/philferriere/cocoapi.git#subdirectory=PythonAPI`
+
+ If you don't want to install: just use 
+`opts.cocoapi_dir`can be used to point to cocoapi directly 
+
+This repo is developed with python 3.8, CUDA 10.2.  
  
- 	
-## Introduction
+* naming rules:  
+SA ScanAva.  SR, SURREAL  
 
-This repo is official **[PyTorch](https://pytorch.org)** implementation of **[Camera Distance-aware Top-down Approach for 3D Multi-person Pose Estimation from a Single RGB Image (ICCV 2019)](https://arxiv.org/abs/1907.11346)**. It contains **PoseNet** part.
+## Data Deployment
 
-**What this repo provides:**
-* [PyTorch](https://pytorch.org) implementation of [Camera Distance-aware Top-down Approach for 3D Multi-person Pose Estimation from a Single RGB Image (ICCV 2019)](https://arxiv.org/abs/1907.11346).
-* Flexible and simple code.
-* Compatibility for most of the publicly available 2D and 3D, single and multi-person pose estimation datasets including **[Human3.6M]([http://vision.imar.ro/human3.6m/description.php](http://vision.imar.ro/human3.6m/description.php)), [MPII](http://human-pose.mpi-inf.mpg.de/), [MS COCO 2017](http://cocodataset.org/#home), [MuCo-3DHP](http://gvv.mpi-inf.mpg.de/projects/SingleShotMultiPerson/) and [MuPoTS-3D](http://gvv.mpi-inf.mpg.de/projects/SingleShotMultiPerson/)**.
-* Human pose estimation visualization code.
+*`SURREAL`   data preparation scripts are provided in `dataPrep` folder. You need to get a user name and password from the SURREAL team first then use our script to generate SURREAL, please refer there readme inside. 
 
-## Dependencies
-* [PyTorch](https://pytorch.org)
-* [CUDA](https://developer.nvidia.com/cuda-downloads)
-* [cuDNN](https://developer.nvidia.com/cudnn)
-* [Anaconda](https://www.anaconda.com/download/)
-* [COCO API](https://github.com/cocodataset/cocoapi)
-
-This code is tested under Ubuntu 16.04, CUDA 9.0, cuDNN 7.1 environment with two NVIDIA 1080Ti GPUs.
-
-Python 3.6.5 version with Anaconda 3 is used for development.
-
-## Directory
-
-### Root
-The `${POSE_ROOT}` is described as below.
+*`ScanAva`:  Additional collected scans, **RELEASE_UPON_ACCEPTANCE** 
+  
+* For `MSCOCO, MPII, Human3.6M, MuCo, MuPoTS`, please refer to [link](https://github.com/mks0601/3DMPPE_POSENET_RELEASE).  
+Attention,  for MuPoTS and MuCo, we remove the middel subfolder `data` and put all contect directly under the dataset name folder.  
+ 
+* setup the dataset dir with `opt.ds_dir`, all datasets should be located under this folder  with structure:    
 ```
-${POSE_ROOT}
-|-- data
-|-- common
-|-- main
-|-- vis
-`-- output
+${ds_dir}
+|-- Human36M
+|   |-- bbox_root
+|   |-- bbox_root_human36m_output.json
+|   |-- images
+|   `-- annotations
+|-- MPII
+|   |-- images
+|   `-- annotations
+|-- MSCOCO
+|-- |-- bbox_root
+|   |   |-- bbox_root_coco_output.json
+|   |-- images
+|   |   |-- train/
+|   |   |-- val/
+|   `-- annotations
+|-- MuCo
+|  |-- augmented_set
+|  |-- unaugmented_set
+|  |-- MuCo-3DHP.json
+|-- MuPoTS
+|   `-- bbox_root
+|   |   |-- bbox_mupots_output.json
+|   |-- MultiPersonTestSet
+|   `-- MuPoTS-3D.json
+|-- ScanAva
+|   |-- ScanName1
+|   |   |-- images
+|   |   `-- annotations.pkl
+|   |   `-- ... 
+| -- train_surreal_images 
+|   |-- run0
+|   |-- run1
+|   |-- run2
+|   `-- surreal_annotations_raw.npy
 ```
-* `data` contains data loading codes and soft links to images and annotations directories.
-* `common` contains kernel codes for 3d multi-person pose estimation system.
-* `main` contains high-level codes for training or testing the network.
-* `vis` contains scripts for 3d visualization.
-* `output` contains log, trained models, visualized outputs, and test result.
 
-### Data
-You need to follow directory structure of the `data` as below.
-```
-${POSE_ROOT}
-|-- data
-|-- |-- Human36M
-|   `-- |-- bbox_root
-|       |   |-- bbox_root_human36m_output.json
-|       |-- images
-|       `-- annotations
-|-- |-- MPII
-|   `-- |-- images
-|       `-- annotations
-|-- |-- MSCOCO
-|   `-- |-- bbox_root
-|       |   |-- bbox_root_coco_output.json
-|       |-- images
-|       |   |-- train/
-|       |   |-- val/
-|       `-- annotations
-|-- |-- MuCo
-|   `-- |-- data
-|       |   |-- augmented_set
-|       |   |-- unaugmented_set
-|       |   `-- MuCo-3DHP.json
-`-- |-- MuPoTS
-|   `-- |-- bbox_root
-|       |   |-- bbox_mupots_output.json
-|       |-- data
-|       |   |-- MultiPersonTestSet
-|       |   `-- MuPoTS-3D.json
-```
-* Download Human3.6M parsed data [[images](https://cv.snu.ac.kr/dataset/3DMPPE/Human36M/images.zip)][[annotations](https://cv.snu.ac.kr/dataset/3DMPPE/Human36M/annotations.zip)]
-* Download MPII parsed data [[images](http://human-pose.mpi-inf.mpg.de/)][[annotations](https://cv.snu.ac.kr/dataset/3DMPPE/MPII/annotations.zip)]
-* Download MuCo parsed and composited data [[images_1](https://cv.snu.ac.kr/dataset/3DMPPE/MuCo/augmented.zip)][[images_2](https://cv.snu.ac.kr/dataset/3DMPPE/MuCo/unaugmented.zip)][[annotations](https://cv.snu.ac.kr/dataset/3DMPPE/MuCo/MuCo-3DHP.json)]
-* Download MuPoTS parsed parsed data [[images](http://gvv.mpi-inf.mpg.de/projects/SingleShotMultiPerson/)][[annotations](https://cv.snu.ac.kr/dataset/3DMPPE/MuPoTS/MuPoTS-3D.json)]
-* All annotation files follow [MS COCO format](http://cocodataset.org/#format-data).
-* If you want to add your own dataset, you have to convert it to [MS COCO format](http://cocodataset.org/#format-data).
-### Output
-You need to follow the directory structure of the `output` folder as below.
-```
-${POSE_ROOT}
-|-- output
-|-- |-- log
-|-- |-- model_dump
-|-- |-- result
-`-- |-- vis
-```
-* Creating `output` folder as soft link form is recommended instead of folder form because it would take large storage capacity.
-* `log` folder contains training log file.
-* `model_dump` folder contains saved checkpoints for each epoch.
-* `result` folder contains final estimation files generated in the testing stage.
-* `vis` folder contains visualized results.
+## Running AHuP demos
+### Model deployment
+All exps and models are saved in `output`. 
+For `ScanAva` demo: 
+ 
+* Semantic Aware Adaptation (SAA) 
+`output/ScanAva-MSCOCO-MPII_res50_D0.02-l3k1-SA-psdt_lsgan_yl-y_regZ5_fG-n_lr0.001_exp/`
 
-### 3D visualization
-* Run `$DB_NAME_img_name.py` to get image file names in `.txt` format.
-* Place your test result files (`preds_2d_kpt_$DB_NAME.mat`, `preds_3d_kpt_$DB_NAME.mat`) in `single` or `multi` folder.
-* Run `draw_3Dpose_$DB_NAME.m`
+* Skeletal Pose Adaptation (SPA)
+`output/GD_PA
+`
+### To Run  
+to evaluate  `ScanAva-SAA-jt2d`:
+`python test.py` 
+ 
+After generate the result. Generate the `ScanAva-SAA-jt2d-SPA` result.    
+`python train_PA_GD.npy --if_test_PA y` 
 
-## Running 3DMPPE_POSENET
-### Start
-* In the `main/config.py`, you can change settings of the model including dataset to use, network backbone, and input size and so on.
+Run `SPA` evaluation: 
+`python test.py --if_loadPreds y`    
 
-### Train
-In the `main` folder, run
-```bash
-python train.py --gpu 0-1
-```
-to train the network on the GPU 0,1. 
-
-If you want to continue experiment, run 
-```bash
-python train.py --gpu 0-1 --continue
-```
-`--gpu 0,1` can be used instead of `--gpu 0-1`.
-
-### Test
-Place trained model at the `output/model_dump/`.
-
-In the `main` folder, run 
-```bash
-python test.py --gpu 0-1 --test_epoch 20
-```
-to test the network on the GPU 0,1 with 20th epoch trained model. `--gpu 0,1` can be used instead of `--gpu 0-1`.
-
-## Results
-Here I report the performance of the PoseNet. Also, I provide pre-trained models of the PoseNetNet. Bounding box and root locations are obtained from DetectNet and RootNet. 
-
-
-#### Human3.6M dataset using protocol 1
-For the evaluation, you can run `test.py` or there are evaluation codes in `Human36M`.
-<p align="center">
-<img src="https://cv.snu.ac.kr/research/3DMPPE/figs/H36M_P1.png">
-</p>
-
-* Bounding box [[H36M_protocol1](https://cv.snu.ac.kr/research/3DMPPE/result/bbox/Human36M/Protocol1/bbox_human36m_output.json)]
-* Bounding box + 3D Human root coordinatees in camera space [[H36M_protocol1](https://cv.snu.ac.kr/research/3DMPPE/result/bbox_root/Human36M/Protocol1/bbox_root_human36m_output.json)]
-* PoseNet model trained on Human3.6M protocol 1 + MPII [[model](https://cv.snu.ac.kr/research/3DMPPE/model/PoseNet/human3.6m/p1/snapshot_24.pth.tar
-)]
-#### Human3.6M dataset using protocol 2
-For the evaluation, you can run `test.py` or there are evaluation codes in `Human36M`.
-<p align="center">
-<img src="https://cv.snu.ac.kr/research/3DMPPE/figs/H36M_P2.png">
-</p>
-
-* Bounding box [[H36M_protocol2](https://cv.snu.ac.kr/research/3DMPPE/result/bbox/Human36M/Protocol2/bbox_human36m_output.json)]
-* Bounding box + 3D Human root coordinatees in camera space [[H36M_protocol2](https://cv.snu.ac.kr/research/3DMPPE/result/bbox_root/Human36M/Protocol2/bbox_root_human36m_output.json)]
-* PoseNet model trained on Human3.6M protocol 2+ MPII [[model](https://cv.snu.ac.kr/research/3DMPPE/model/PoseNet/human3.6m/p2/snapshot_24.pth.tar
-)]
-
-#### MuPoTS-3D dataset
-For the evaluation, run `test.py`.  After that, move `data/MuPoTS/mpii_mupots_multiperson_eval.m` in `data/MuPoTS/data`. Also, move the test result files (`preds_2d_kpt_mupots.mat` and `preds_3d_kpt_mupots.mat`) in `data/MuPoTS/data`. Then run `mpii_mupots_multiperson_eval.m` with your evaluation mode arguments.
-<p align="center">
-<img src="https://cv.snu.ac.kr/research/3DMPPE/figs/MuPoTS.png">
-</p>
-
-* Bounding box [[MuPoTS-3D](https://cv.snu.ac.kr/research/3DMPPE/result/bbox/MuPoTS-3D/bbox_mupots_output.json)]
-* Bounding box + 3D Human root coordinatees in camera space [[MuPoTS-3D](https://cv.snu.ac.kr/research/3DMPPE/result/bbox_root/MuPoTS-3D/bbox_root_mupots_output.json)]
-* PoseNet model trained on MuCO-3DHP + MSCOCO [[model](https://cv.snu.ac.kr/research/3DMPPE/model/PoseNet/muco/snapshot_24.pth.tar
-)]
-
-#### MSCOCO dataset
-
-We additionally provide estimated 3D human root coordinates in on the MSCOCO dataset. The coordinates are in 3D camera coordinate system, and focal lengths are set to 1500mm for both x and y axis. You can change focal length and corresponding distance using equation 2 or equation in supplementarial material of my [paper](https://arxiv.org/abs/1907.11346)
-* Bounding box + 3D Human root coordinates in camera space [[MSCOCO](https://cv.snu.ac.kr/research/3DMPPE/result/bbox_root/MSCOCO/bbox_root_coco_output.json)]
+Fort Other details, **RELEASE_UPON_ACCEPTANCE**
 
 ## Reference
-  ```
-@InProceedings{Moon_2019_ICCV_3DMPPE,
-  author = {Moon, Gyeongsik and Chang, Juyong and Lee, Kyoung Mu},
-  title = {Camera Distance-aware Top-down Approach for 3D Multi-person Pose Estimation from a Single RGB Image},
-  booktitle = {The IEEE Conference on International Conference on Computer Vision (ICCV)},
-  year = {2019}
-}
-```
+**RELEASE_UPON_ACCEPTANCE**
 

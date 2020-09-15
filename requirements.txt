@@ -1,0 +1,9 @@
+pytorch
+visdom
+jsonpatch
+dominate
+sklearn
+seaborn
+json
+opencv
+cocoapi

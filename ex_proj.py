@@ -4,7 +4,6 @@ project module test purpose
 import opt
 import utils.utils_tool as ut_t
 opts = opt.opts
-# ut_t.add_pypath(opts.cocoapi_dir)       # add coco path
 from data.Human36M.Human36M import Human36M
 from data.MPII.MPII import MPII
 from utils import vis
@@ -50,17 +49,45 @@ if __name__ == '__main__':
 	# ds = MPII('test', opts)
 	# ds = SURREAL('test', opts)
 	# ds = MuCo('train', opts)
-	# if 'test' in ds.data_split:
-	# 	is_train = False
-	# else:
-	# 	is_train = True
+	if 'test' in ds.data_split:
+		is_train = False
+	else:
+		is_train = True
 	# # get raw image and plot
 	# img =cv2.imread(ds.data[0]['img_path'])
 	joint_img = ds.data[0]['joint_img']
 	# ut_t.showJoints(img, joint_img)
 
-	# ds_adp3d = AdpDataset_3d(ds, opts.ref_joints_name, is_train, trans, opts=opts)
-	# img, tar = ds_adp3d.__getitem__(15)
+	ds_adp3d = AdpDataset_3d(ds, opts.ref_joints_name, is_train, trans, opts=opts)
+	img, tar = ds_adp3d.__getitem__(15)
+	# test gaussian hm
+	# gauss_hm = tar['gauss_hm']
+	whts = tar['whts']
+	# sz correct
+	# print(len(gauss_hm))
+	# print(len(gauss_hm[0]))
+	# print(gauss_hm[0][0].shape)
+	for wht in whts:
+		print(wht)
+
+	# i_stg = 3
+	# img_vis = ut_t.ts2cv2(img['img_patch'])
+	# cv2.imshow('img', img_vis)
+	# if_prt = 1
+	# all is tensor now
+
+	# for i in range(len(gauss_hm)):
+	# 	g = gauss_hm[i][0]
+	# 	print(type(g))      # suppose to be tensor now
+	# 	print(g.size())
+	#
+	# for hm in gauss_hm[i_stg]:
+	# 	if if_prt:
+	# 		print(hm.shape)
+	# 		if_prt = 0
+	# 	cv2.imshow('gaussian hm', cv2.resize(hm.numpy().squeeze(), (256, 256))) # color not same darkness, possibly center position
+	# 	cv2.waitKey(0)
+	# cv2.destroyAllWindows()
 
 	# loader = DataLoader(dataset=ds_adp3d, batch_size=32, shuffle=True, num_workers=1)
 	# nm_3d = osp.join('tmp_img3d.jpg')

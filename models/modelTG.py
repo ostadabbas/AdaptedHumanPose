@@ -18,9 +18,9 @@ import torch.optim
 import torchvision.transforms as transforms
 from .base_model import BaseModel
 from .resnet import ResNetBackbone
-from .networks import define_D, init_net
+from .networks import define_D, init_net, D_SA
 from .nadam import Nadam
-from .criterion import GANloss_vec
+from .criterion import GANloss_vec, GANloss_SA, L_D_SA
 
 import opt
 
@@ -103,10 +103,13 @@ class TaskGenNet(BaseModel):
 		self.loss_T = torch.tensor([-1.])        # initialize  in case no needed to indicate not training any longer.
 		self.loss_G_GAN = torch.tensor([-1.])
 		self.loss_D = torch.tensor([-1.])
+		# self.stgs_D = opts.stgs_D
+		self.mode_D = opts.mode_D           #  SA, C, or C1
+		self.pivot = opts.pivot
 
 		if 'res' in opts.net_BB:
 			self.netG = init_net(ResNetBackbone(opts.net_BB), init_type=opts.init_type, gpu_ids=self.gpu_ids)
-			self.inplanes = 2048  # input planes
+			self.inplanes = 2048  # input planes, 8 x 2048?
 		else:
 			self.netG = None  #
 			self.inplanes = 256  #
@@ -120,7 +123,7 @@ class TaskGenNet(BaseModel):
 		elif 'nadam' == opts.optimizer:
 			optimT = Nadam      # default 2e-3  0.9, 0.999, here adam is 1e-3
 
-		if len(opts.trainset) > 1 and opts.lmd_D >0 :
+		if len(opts.trainset) > 1 and opts.lmd_D >0:    # more than 1 set to distinguish
 			self.if_D = True
 		else:
 			self.if_D = False
@@ -140,18 +143,28 @@ class TaskGenNet(BaseModel):
 
 			if self.if_D:  # updating by D option
 				self.loss_names += ['G_GAN', 'D']
-				self.netD = define_D(self.inplanes, 64, 'n_layers', n_layers_D=opts.n_layers_D, init_type=opts.init_type, gpu_ids=opts.gpu_ids)
+				# if not self.if_SA:
+				if 'SA' in self.mode_D: # semantic aware        only SA needs jt ch_out
+					ch_out = self.joint_num    #
+				else:
+					ch_out = 1
+				self.criterionGAN = L_D_SA(opts.gan_mode, mode_L=self.mode_D).to(self.device)
+
+				if '1' in opts.mode_D:      # C1 or SA1
+					self.netD = define_D(self.inplanes, 64, 'convD_C1', n_layers_D=opts.n_layers_D, init_type=opts.init_type, gpu_ids=opts.gpu_ids, ch_out=ch_out, kn_D = opts.kn_D)  # 2 layers , use pixel for single point without expanding,
+				else:
+					self.netD = define_D(self.inplanes, 64, 'convD', n_layers_D=opts.n_layers_D, init_type=opts.init_type, gpu_ids=opts.gpu_ids, ch_out=ch_out, kn_D = opts.kn_D)  # 2 layers , use pixel for single point without expanding,
 				self.models.append(self.netD)
-				# self.criterionGAN = GANLoss(opts.gan_mode).to(self.device)
-				self.criterionGAN = GANloss_vec(opts.gan_mode).to(self.device)
+
 				self.optimizer_D = optimT(self.netD.parameters(), lr=opts.lr, betas=betas)
+				self.set_requires_grad(self.netD, False)        # prevent updating during  G
 				self.optimizers.append(self.optimizer_D)
 			# auto shedulers
 			self.gen_auto_schedulers()
 
 	def load_bb_pretrain(self):
 		'''
-		load the pretrain Bb
+		load the pretrain Backbone
 		:return:
 		'''
 		netG = self.netG    # ref to it
@@ -165,7 +178,7 @@ class TaskGenNet(BaseModel):
 		:return:
 		'''
 		self.if_fixG = True
-		self.if_D =False
+		self.if_D =False        # control current state
 		self.set_requires_grad(self.netG, requires_grad=False)
 		# get rid of the loss name to get rid of the requirement
 
@@ -176,8 +189,8 @@ class TaskGenNet(BaseModel):
 		simply the G-T loop to get coords:HM
 		:return:
 		'''
-		self.G_fts = self.netG(self.img)    # bch*x* y
-		self.HM = self.netT(self.G_fts)     # 64 * 64  * (17* 64)
+		self.G_fts = self.netG(self.img)    # bch*x* y,  SA version will be  list of 4  bchxchxhxw
+		self.HM = self.netT(self.G_fts)     # real size 256 512 1024 2048 ??!
 		self.coord = soft_argmax(self.HM, self.joint_num)       # coord in HM
 
 	def backward_D(self):
@@ -185,8 +198,37 @@ class TaskGenNet(BaseModel):
 		forward D , D loss then back, optD step
 		:return:
 		'''
-		pred_D = self.netD(self.G_fts.detach())  # all prediction rst
-		self.loss_D = self.criterionGAN(pred_D, self.tgt_if_SYNs) * self.opts.lmd_D
+		# D_SA needs to calculate all the list posistions
+		# netD(G_fts) input list of features, return list of features
+		# li_rst_D  against the if_SYN,
+
+		# this is for the  SA version
+		# if type(self.G_fts) is list:    # from net G, suppose to be a list
+		# 	# make another detatched list
+		# 	G_fts_de = []
+		# 	for ft in self.G_fts:   # list[4]
+		# 		G_fts_de.append(ft.detach())
+		# else:
+
+		G_fts_de = self.G_fts.detach()
+		pred_D = self.netD(G_fts_de)  # no affecting G expect 4d weight 128,64, 3,3, input 3d  [256, 64, 64]
+		whts = self.whts_D  # set the weights D later, should be same size  N x hm
+		if self.opts.mode_D == 'C1':    # other options can be extended here
+			pred_pch, pred_C1 = pred_D[0], pred_D[1]
+			arg_in_D = {'preds': pred_C1, 'if_SYNs': self.tgt_if_SYNs, 'whts': whts}       # 1 classification. and criterion
+			self.loss_D = self.criterionGAN(arg_in_D)  # try to make syn one
+		elif self.mode_D == 'SA1':     # combine SA and C1 together
+			pred_pch, pred_C1 = pred_D[0], pred_D[1]
+			arg_in_D = {'preds': pred_C1, 'if_SYNs': self.tgt_if_SYNs, 'whts': whts}  # 1 classification. and criterion
+			loss_C1 = self.criterionGAN(arg_in_D)  # try to make syn one
+			arg_in_D = {'preds': pred_pch, 'if_SYNs': self.tgt_if_SYNs, 'whts': whts}  # 1 classification. and criterion
+			loss_pch = self.criterionGAN(arg_in_D)  # try to make syn one
+			self.loss_D = loss_C1 + loss_pch        # together
+			# combine the reuslt together
+		else:       # all other cases, single pred_D
+			arg_in_D = {'preds': pred_D, 'if_SYNs': self.tgt_if_SYNs, 'whts': whts}        # 16 ch wht, all in
+			self.loss_D = self.criterionGAN(arg_in_D)  # try to make syn one
+
 		self.loss_D.backward()
 
 	def backward_G(self):
@@ -197,12 +239,42 @@ class TaskGenNet(BaseModel):
 		'''
 		self.loss_T_tot = torch.tensor([0.]).to(self.device) # zero loss
 		if self.if_D:
-			pred_D = self.netD(self.G_fts.detach())  # avoid affecting G
-			self.loss_G_GAN = self.criterionGAN(pred_D, 1 - self.tgt_if_SYNs) * self.opts.lmd_D
+			pred_D = self.netD(self.G_fts)  # avoid affecting G. Wrong should attatch
+			whts = self.whts_D  # opt in loss funct
+			# if_SYNs_rev = torch.zeros_like(self.tgt_if_SYNs)    # all confused to real
+			# if_SYNs_rev = torch.zeros_like(self.tgt_if_SYNs)    # all confused to real
+			if self.pivot == 'sdt':     # sdt specific syn rev
+				if_SYNs_rev = torch.ones_like(self.tgt_if_SYNs)*0.5        # all even
+			else:       # for both uda, and  inverse label
+				if_SYNs_rev = 1 - self.tgt_if_SYNs
+
+			if self.pivot == 'n':       # only n keep real, idx
+				idx_smpl = self.tgt_if_SYNs.view(-1) == 0  # only keeps the real ones
+			else:    # keep all
+				N = self.tgt_if_SYNs.shape[0]
+				# idx_smpl = torch.ones(N).type(torch.bool)
+				idx_smpl = torch.tensor([True] * N, dtype=bool)     # similar to above
+				# arg_in_D = {'preds': pred_D, 'if_SYNs': if_SYNs_rev, 'whts': whts}  # 16 ch wht    reverse if syn order wrong
+
+			if self.mode_D == 'C1':     # C1 branche
+				pred_pch, pred_C1 = pred_D[0], pred_D[1]
+				arg_in_D = {'preds': pred_C1[idx_smpl], 'if_SYNs': if_SYNs_rev[idx_smpl], 'whts': whts[idx_smpl]}
+				self.loss_G_GAN = self.criterionGAN(arg_in_D) * self.opts.lmd_D  # to make real one
+			elif self.mode_D == 'SA1':
+				pred_pch, pred_C1 = pred_D[0], pred_D[1]
+				arg_in_D = {'preds': pred_C1[idx_smpl], 'if_SYNs': if_SYNs_rev[idx_smpl], 'whts': whts[idx_smpl]}
+				loss_C1 = self.criterionGAN(arg_in_D) * self.opts.lmd_D
+				arg_in_D = {'preds': pred_pch[idx_smpl], 'if_SYNs': if_SYNs_rev[idx_smpl], 'whts': whts[idx_smpl]}
+				loss_pch = self.criterionGAN(arg_in_D) * self.opts.lmd_D
+				self.loss_G_GAN = loss_C1 + loss_pch
+			else:
+				arg_in_D = {'preds': pred_D[idx_smpl], 'if_SYNs': if_SYNs_rev[idx_smpl], 'whts': whts[idx_smpl]}
+				self.loss_G_GAN = self.criterionGAN(arg_in_D) * self.opts.lmd_D # to make real one
+
 			self.loss_T_tot += self.loss_G_GAN
 
 		# task loss, back
-		loss_coord = torch.abs(self.coord - self.tgt_coord) * self.tgt_vis  # vis based loss
+		loss_coord = torch.abs(self.coord - self.tgt_coord) * self.tgt_vis  # vis based loss, original 3DMPPE gives abs
 		# if_dbg = False
 		# if if_dbg:
 		# 	tgt_np = self.tgt_coord.cpu().detach().numpy()
@@ -210,7 +282,7 @@ class TaskGenNet(BaseModel):
 		# 	print(tgt_min<0)        # if x, y there is smaller than 0
 		# 	print(self.tgt_vis)
 
-		loss_coord = (loss_coord[:,:,0] + loss_coord[:,:,1] + loss_coord[:,:,2] * self.tgt_have_depth * self.if_z) /3.      # get rid of z part
+		loss_coord = (loss_coord[:,:,0] + loss_coord[:, :, 1] + loss_coord[:, :, 2] * self.tgt_have_depth * self.if_z) /3.      # get rid of z part
 		self.loss_T = loss_coord.mean()
 		self.loss_T_tot += self.loss_T
 		self.loss_T_tot.backward()
@@ -228,7 +300,17 @@ class TaskGenNet(BaseModel):
 			self.tgt_coord = target['joint_hm'].to(self.device)
 			self.tgt_vis = target['vis'].to(self.device)
 			self.tgt_have_depth = target['if_depth_v'].to(self.device)
-			self.tgt_if_SYNs = target['if_SYN_v'].to(self.device)
+			self.tgt_if_SYNs = target['if_SYN_v'].to(self.device)       # 120 x 1
+			self.whts_D = target['wts_D'].to(self.device)  # give weights D in feeder
+
+			# if self.opts.mode_D == 'SA':    # semantic aware gaussian
+			# 	self.li2_gs = target['li2_gs']  # list 4 x 17 list each position li[i][j] will be batched
+			# 	for i in range(self.opts.n_stg_D):  # gauss to device
+			# 		for j in range(self.joint_num):
+			# 			self.li2_gs[i][j] = self.li2_gs[i][j].to(self.device)
+			# else:
+			# 	self.li2_gs = None
+
 
 	def optimize_parameters(self):
 		self.forward()
@@ -240,7 +322,7 @@ class TaskGenNet(BaseModel):
 			self.set_requires_grad(self.netD, False)  # D requires no gradients when optimizing G
 		self.optimizer_G.zero_grad()  # set G's gradients to zero
 		self.optimizer_T.zero_grad()
-		self.backward_G()  # T, G both
+		self.backward_G()  # T, G both, G include GAN(D) loss, will affect D
 		if not self.if_fixG:
 			self.optimizer_G.step()
 		self.optimizer_T.step()

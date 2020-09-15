@@ -9,11 +9,21 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="aws-cluster">
+        <serverdata>
+          <mappings>
+            <mapping deploy="taskGen3d" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="discovery">
         <serverdata>
           <mappings>
             <mapping deploy="taskGen3d" local="$PROJECT_DIR$" web="/" />
           </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/output" />
+          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>

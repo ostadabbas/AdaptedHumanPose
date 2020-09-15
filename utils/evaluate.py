@@ -14,6 +14,25 @@ from pathlib import Path
 import os.path as osp
 import json
 
+def get_MPJPE(preds, gts):
+	'''
+	from the inputs and gts Nxn_jtx 3 get the average MPJPE and PA version error
+	:param preds:
+	:param gts:
+	:return:
+	'''
+	preds_align = []
+	for pred, gt in tqdm(zip(preds, gts), desc='>>>aligning preds '):
+		pred_align = ut_p.rigid_align(pred, gt)
+		preds_align.append(pred_align)
+	preds_align = np.array(preds_align)  #
+	diff_align = preds_align - gts
+	av_align_err = np.mean(np.power(np.sum(diff_align ** 2, axis=2), 0.5))  # MPJPE
+
+	diff = preds - gts
+	av_err = np.mean(np.power(np.sum(diff ** 2, axis=2), 0.5))
+
+	return av_err, av_align_err
 
 def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=None, opts={}, avBone=3700, if_svVis=False, pth_head=None, fn_prt=print):
 	'''
@@ -41,6 +60,8 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 	sample_num = len(preds)  # use predict length
 	pred_save = []
 	diff_sum = np.zeros(3)  # keep x,y,z difference
+	pred_camRt_li = []
+	gt_camRt_li = []
 
 	# prepare metric array
 	action_names = act_nm_li
@@ -53,8 +74,9 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		p2_error_action = [[] for _ in range(len(action_names))]  # MPJPE error for each action
 		z1_error_action = [[] for _ in range(len(action_names))]  # PA MPJPE for each action
 		z2_error_action = [[] for _ in range(len(action_names))]  # MPJPE error for each action
+	print('pth_hd is', pth_head)
 
-	for i in tqdm(range(sample_num), desc='evaluating ...'):
+	for i in tqdm(range(sample_num), desc='evaluating ...'):    # all images
 		gt = gts[i]
 		f = gt['f']
 		c = gt['c']
@@ -78,7 +100,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 			pre_2d_kpt[[idx_pelvis, idx_L_Hip, idx_R_Hip]] += adj_vec
 		# pre_2d_kpt[:,0], pre_2d_kpt[:,1], pre_2d_kpt[:,2] = warp_coord_to_original(pre_2d_kpt, bbox, gt_3d_root)
 		boneLen2d_mm = ut_p.get_boneLen(gt_3d_kpt[:, :2], opts.ref_skels_idx)  # use standard oen
-		if 'y' == opts.if_aveBoneRec:
+		if 'y' == opts.if_aveBoneRec:       # only effect for normalize bone case
 			if not avBone:
 				print('error, no aveBone given')
 				exit(-1)
@@ -110,6 +132,11 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		# root joint alignment
 		pred_3d_kpt = pred_3d_kpt - pred_3d_kpt[opts.ref_root_idx]  # - adj* boneLen
 		gt_3d_kpt = gt_3d_kpt - gt_3d_kpt[opts.ref_root_idx]
+
+		# to save li    for later adaptation
+		pred_camRt_li.append(pred_3d_kpt.tolist())  # json later
+		gt_camRt_li.append(gt_3d_kpt.tolist())
+
 		# get all joints difference from gt except root
 		diff_pred2gt = pred_3d_kpt - gt_3d_kpt
 		diff_av = np.delete(diff_pred2gt, opts.ref_root_idx, axis=0).mean(
@@ -117,8 +144,8 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		diff_sum += diff_av  # all jt diff 3
 		# rigid alignment for PA MPJPE (protocol #1)
 
-		if if_svVis and 0 == i % (opts.svVis_step * opts.batch_size):  # rooted 3d only non-aligned
-			ut_t.save_3d_tg3d(pred_3d_kpt, opts.vis_test_dir, opts.ref_skels_idx, idx=i, suffix='root')
+		# if if_svVis and 0 == i % (opts.svVis_step * opts.batch_size):  # rooted 3d only non-aligned   # this is for metric 3d
+		# 	ut_t.save_3d_tg3d(pred_3d_kpt, opts.vis_test_dir, opts.ref_skels_idx, idx=i, suffix='root')
 
 		# here take for eval
 		pred_3d_kpt = np.take(pred_3d_kpt, opts.ref_evals_idx, axis=0)
@@ -153,7 +180,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		z2_error[i] = np.abs(pred_3d_kpt[:, 2] - gt_3d_kpt[:, 2])  # n_jt
 
 		if action_names:
-			action_idx = fn_getIdx(img_path)
+			action_idx = fn_getIdx(img_path)        # from path name get the action index
 			p1_error_action[action_idx].append(p1_error[i].copy())
 			p2_error_action[action_idx].append(p2_error[i].copy())
 			z1_error_action[action_idx].append(z1_error[i].copy())
@@ -162,7 +189,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 	# round up result
 	if if_align:
 		pck_ref = tuple(range(0, 155, 5))
-		p1_err_abs = np.power(np.sum(p1_error, axis=2), 0.5)  # N x n_jt
+		p1_err_abs = np.power(np.sum(p1_error, axis=2), 0.5)  # N x n_jt, 20th is the 10 cm
 		pck_v_tot, auc_tot = ut_t.getPCK_3d(p1_err_abs, ref=pck_ref)
 		pck_v_li = []
 		auc_li = []
@@ -174,7 +201,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 				else:
 					p1_act_err_abs = np.power(np.sum(err_act, axis=2), 0.5)
 					pck_v, auc = ut_t.getPCK_3d(p1_act_err_abs, ref=pck_ref)
-				pck_v_li.append(pck_v)
+				pck_v_li.append(pck_v)      #  n_act li
 				auc_li.append(auc)
 
 	# reduce to metrics  into dict
@@ -195,7 +222,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		z2_err_action_av = []
 
 		for i in range(len(p1_error_action)):  # n_act * n_subj * n_jt * 3
-			if p1_error_action[i]:  # if there is value here
+			if p1_error_action[i]:  # if there is value here        # not added will be []
 				err = np.array(p1_error_action[i])
 				err = np.mean(np.power(np.sum(err, axis=2), 0.5))
 				p1_err_action_av.append(err)
@@ -234,7 +261,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		err_dict['action_name'] = action_names
 	# pck_rst = {'pck_v_tot':pck_v_tot, 'pck_v_li':pck_v_li, 'auc_tot':auc_tot, 'auc_li':auc_li}
 	if if_align:    # pck only exists when aligned, otherwise not exists
-		pck_rst = {'pck_v_tot':pck_v_tot,'auc_tot':auc_tot}
+		pck_rst = {'pck_v_tot':pck_v_tot, 'auc_tot':auc_tot}
 		if action_names:
 			pck_rst['pck_v_li'] = pck_v_li
 			pck_rst['auc_li'] = auc_li
@@ -248,18 +275,26 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 			print('{} has type {}'.format(k, type(pred_save0[k])))
 	rst_dict = {'pred_rst': pred_save, 'ref_joints_name': opts.ref_joints_name}
 
+
 	# save result
 	if pth_head:
 		rst_dir = opts.rst_dir
 		fn_prt('Test result save at {}'.format(pth_head))
-		sv_json(rst_dir, pth_head, rst_dict, 'rst')
-		sv_json(rst_dir, pth_head, err_dict, 'eval')
+		sv_json(rst_dir, pth_head, rst_dict, sv_nm='rst')     # prediction result, original space
+		sv_json(rst_dir, pth_head, err_dict, 'eval')        # p1 p2 MPJPE mean per joint position error
 		sv_json(rst_dir, pth_head, pck_rst, '3dpck')
+		# save the root centered pred and also the
+		if True:
+			print('the shape of pred_camRt_li', np.array(pred_camRt_li).shape)
+		pred_camRt = {'pred': pred_camRt_li, 'gt': gt_camRt_li}
+		sv_json(rst_dir, pth_head, pred_camRt, 'pred_camRt')
+
 	prt_rst(fn_prt=fn_prt, err_dict=err_dict, pck_rst=pck_rst, diff_av=diff_av, act_nms=action_names)
 	# return pred_save, err_dict, pck_rst, diff_av
 
 def sv_json(rst_dir, pth_head, rst, sv_nm):
 	pth = osp.join(rst_dir, '_'.join([pth_head, sv_nm+'.json']))
+	print('save result to {}'.format(pth))
 	with open(pth, 'w') as f:
 		json.dump(rst, f)
 
