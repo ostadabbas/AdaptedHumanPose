@@ -1,6 +1,6 @@
 '''
 train the PA GD net, specify the src(gt or pred) tar,  all gt right now.
-loop real syn,  f then D loss
+All possible compoennts are provided. We only use SPA strategy at the moment.
 '''
 
 import torch
@@ -167,14 +167,8 @@ def loop(models, DL, epoch, phase='train', logger=None, **kwargs):
 			optimG.step()
 
 		else:       # test only get loss
-			# out_src = D(preds)
-			# out_tar = D(tars)
-			# # D backward, can free and freeze grad, but for G if only optimG step, no need to care, only for efficiency I think  .
-			# src_label = torch.tensor(1.0, requires_grad=True).expand_as(
-			# 	out_src).cuda()  # or syn label, must be sequence get float??
-			# tar_label = torch.tensor(0.0, requires_grad=True).expand_as(out_tar).cuda()
 
-			loss_D_src = critD(out_src, src_label)  #
+			loss_D_src = critD(out_src, src_label)  #   not employed !
 			loss_D_tar = critD(out_src, tar_label)  #
 			loss_D = loss_D_src + loss_D_tar        # no back propo
 			loss_L = critG(preds, inputs)   # preds and inputs!!?
@@ -204,11 +198,6 @@ def loop(models, DL, epoch, phase='train', logger=None, **kwargs):
 		preds = np.concatenate(li_out, axis=0).reshape(gts.shape)   # should be same shape? why miss so muhc
 		if opts.if_neckRt == 'y':
 			preds = preds + ds.preds_thrx       # recover back
-			# preds = preds - preds[:, (0,)]  # always back to pelvis rooted
-			# print('after minus')
-			# print('first', preds[0])
-			# preds = preds - preds[:, (0,)]
-		# pred_3d_kpt_align = ut_p.rigid_align(pred_3d_kpt, gt_3d_kpt) ge align
 		av_err, av_align_err = get_MPJPE(preds, gts)    # mapped -> gt
 		err_ori, err_align_ori = get_MPJPE(inputs, gts)     # weak -> gt
 		av_err_skel_ori = np.abs(ds.l_skel_inp - ds.l_skel_tar).mean()
@@ -236,8 +225,7 @@ def main():
 
 	set_env(opts)
 	bch_sz = opts.batch_size_PA
-	# opts_in=get_opts()      # the inside opts
-	# model . optimizer,  criterion,  scheduler
+
 	# keep G, D loss
 	G = PAnet(d=3, mode=opts.PA_G_mode)      # 3d input 51
 	G = G.cuda()        # make G and D
