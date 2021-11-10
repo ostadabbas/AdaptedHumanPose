@@ -9,6 +9,6 @@
 #SBATCH --output=bch_outs/gen_gtHm.%j.out
 #SBATCH --error=bch_outs/gen_gtHm.%j.err
 # input train/test, dsSyn, gan_mode[vanilla |lsgan]
-# single script to run one training session SA 0.02 lsgan ly
+# generate pose dataset in hm
 source activate pch1.5
 python gen_poseDs_hm.py --dsNm ${1}

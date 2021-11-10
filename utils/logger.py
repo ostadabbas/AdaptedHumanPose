@@ -21,7 +21,7 @@ class Colorlogger():
         log_file = os.path.join(log_dir, log_name)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        file_log = logging.FileHandler(log_file, mode='a')
+        file_log = logging.FileHandler(log_file, mode='w')      # original 'a'  append
         file_log.setLevel(logging.INFO)
         console_log = logging.StreamHandler()
         console_log.setLevel(logging.INFO)

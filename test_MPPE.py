@@ -26,7 +26,7 @@ import json
 from models.MPPE import get_pose_net
 from utils.config_MPPE import Config
 from torch.nn.parallel.data_parallel import DataParallel
-
+from utils.utils_tch import get_model_summary
 
 from models.smplBL import PAnet, dct_mu, dct_std
 import torch.nn as nn
@@ -85,6 +85,12 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 		itr_per_epoch = min(itr_per_epoch, opts.testIter)
 	model.eval()
 	# if load,
+	# get summary
+	input_t, target_t = ds_adp[0]
+	img_patch = input_t['img_patch'].unsqueeze(0)
+	# writer_dict['writer'].add_graph(model, (dump_input, ))      # can't work under 1.4 get rid of
+	logger_test.info(get_model_summary(model, img_patch))  # get output,  save compare ori, hmb, inc (%)
+
 	with torch.no_grad():
 		for i in tqdm(range(itr_per_epoch), desc='testing {} partition {}...'.format(opts.testset, opts.test_par)):        # loop all test
 			input, target = next(iter_test)

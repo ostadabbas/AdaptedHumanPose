@@ -1,6 +1,7 @@
 '''
-train the PA GD net, specify the src(gt or pred) tar,  all gt right now.
-All possible compoennts are provided. We only use SPA strategy at the moment.
+train the PA GD (generative , descriminative) net, specify the src(gt or pred) tar,  all gt right now.
+All possible components are provided. We only use SPA strategy at the moment.
+train with test.  Can skip test by setting if_test_PA.
 '''
 
 import torch
@@ -24,6 +25,7 @@ from tqdm import tqdm
 import json
 import argparse
 from utils.evaluate import get_MPJPE
+from utils.utils_tch import get_model_summary
 
 ## hardwired env variables, can be in parser,
 dt_fd = 'data_files'        # keep the gt data
@@ -44,7 +46,7 @@ logger = Colorlogger(logger_dir, 'GD_logs.txt') # global logger
 
 def get_hm_arr_PA(opts):
 	'''
-	from the current setting and tarset_PA, get the hm_arr for source and tar
+	from the current setting and tarset_PA, get the hm_arr for source and tar. Prediction and gt.
 	:param opts:
 	:return:
 	'''
@@ -55,6 +57,10 @@ def get_hm_arr_PA(opts):
 		dsNm = 'Human36M_Btype-h36m_SBL-n_PA-n_exp_test_proto2_pred_hm'
 	elif tarset_PA == 'MuPoTS' or tarset_PA == 'MuCo':      # same test data
 		dsNm = 'MuPoTS_Btype-h36m_SBL-n_PA-n_exp_test_pred_hm'
+	elif tarset_PA == 'ScanAva':
+		dsNm = 'ScanAva_Btype-h36m_SBL-n_PA-n_exp_test_pred_hm'
+	elif tarset_PA == 'SURREAL':
+		dsNm = 'SURREAL_Btype-h36m_SBL-n_PA-n_exp_test_pred_hm'
 
 	dt_pth = osp.join(opts.rst_dir, dsNm+'.json')
 	logger.info('>>> loading test data from {}'.format(dt_pth))
@@ -116,6 +122,11 @@ def loop(models, DL, epoch, phase='train', logger=None, **kwargs):
 	li_loss_skel = []        # for D loss here
 	li_out = []     # for pred later
 	# for i, (inputs, tars)in enumerate(DL):
+
+	# for summary
+	input_t = torch.ones([1,51]).cuda()
+	logger.info(get_model_summary(G, input_t))  # get output,  save compare ori, hmb, inc (%)
+
 	for i, inps in enumerate(DL):
 		inputs = inps[0]
 		tars = inps[1]
@@ -200,7 +211,7 @@ def loop(models, DL, epoch, phase='train', logger=None, **kwargs):
 			preds = preds + ds.preds_thrx       # recover back
 		av_err, av_align_err = get_MPJPE(preds, gts)    # mapped -> gt
 		err_ori, err_align_ori = get_MPJPE(inputs, gts)     # weak -> gt
-		av_err_skel_ori = np.abs(ds.l_skel_inp - ds.l_skel_tar).mean()
+		av_err_skel_ori = np.abs(ds.l_skel_inp - ds.l_skel_tar).mean()      # the original error
 	else:
 		av_err = -1.    # not available
 		av_align_err = -1.
@@ -213,7 +224,7 @@ def loop(models, DL, epoch, phase='train', logger=None, **kwargs):
 	av_loss_D = np.array(li_loss_D).mean()
 	# give alignments
 	if phase == 'test':
-		f_prt('{:5} epoch {:3} time:{:5.3f}, av_loss_G: {:5.3f}, av_loss_skel: {:5.3f},av_loss_D: {:5.3f}, av_err:{:5.3f} av_align_err:{:4.2f} err_ori:{:5.3f} err_aign_ori:{:5.3f} err_skel_ori:{:5.3f} '.format(phase, epoch, time()-epoch_st_tm, av_loss_G, av_loss_skel, av_loss_D,  av_err, av_align_err, err_ori, err_align_ori, av_err_skel_ori))
+		f_prt('{:5} epoch {:3} time:{:5.3f}, av_loss_G: {:5.3f}, av_loss_skel: {:5.3f},av_loss_D: {:5.3f}, av_err:{:5.3f} av_align_err:{:4.3f} err_ori:{:5.3f} err_aign_ori:{:5.3f} err_skel_ori:{:5.3f} '.format(phase, epoch, time()-epoch_st_tm, av_loss_G, av_loss_skel, av_loss_D,  av_err, av_align_err, err_ori, err_align_ori, av_err_skel_ori))
 	else:
 		f_prt('{:5} epoch {:3} time:{:5.3f} av_loss_G: {:5.3f} av_loss_skel: {:5.3f} av_loss_D: {:5.3f}'.format(phase, epoch,time() - epoch_st_tm, av_loss_G, av_loss_skel, av_loss_D))
 
@@ -240,11 +251,18 @@ def main():
 		'h36m-p1': 'Human36M-p1',
 		'h36m-p2': 'Human36M-p2',
 		'MuCo': 'MuCo',
-		'MuPoTS': 'MuPoTS'
+		'MuPoTS': 'MuPoTS',
+		'ScanAva': 'ScanAva',
+		'SURREAL': 'SURREAL'
 	}
-	srcNm = opts.trainset[0]      # ScanAva
-	tarNm  = dct_tarNm[opts.tarset_PA]  # read from the ds files
-	sv_hd = osp.join('{}_{}'.format(srcNm, tarNm))  #ScanAva_Human36-p1
+	srcNm = opts.trainset[0]      # ScanAva, MuCo?
+	if srcNm == 'Human36M': # except h36m others are the same load
+		srcNm_ld = 'Human36M-p2'   # Human36M only use p2
+	else:
+		srcNm_ld = srcNm
+
+	tarNm = dct_tarNm[opts.tarset_PA]  # read from the ds files
+	sv_hd = osp.join('{}_{}'.format(srcNm, tarNm))  #ScanAva_Human36-p1, from src adapt to tar
 	if opts.if_neckRt == 'y':
 		sv_hd = sv_hd + '_neck'     # save with neck name
 
@@ -263,8 +281,10 @@ def main():
 	schedulerD = torch.optim.lr_scheduler.StepLR(optimizerD, step_size=1, gamma=opts.gamma_PA)    # every epoch , step down
 	err_best = 1000
 	start_epoch = 0
-
-	ckpt_pth = osp.join(model_dir, sv_hd + '.pth')
+	if opts.if_test_PA == 'y':
+		ckpt_pth = osp.join(model_dir, sv_hd + '_best.pth') # if test , take the best one
+	else:
+		ckpt_pth = osp.join(model_dir, sv_hd + '.pth')
 	if opts.if_continue_PA == 'y' or opts.if_test_PA == 'y':  # load correconding state dict, load into two models.
 		logger.info(">>> try to load previous checkpoints")
 		if osp.exists(ckpt_pth):
@@ -283,10 +303,10 @@ def main():
 			logger.info(">>> ckpt loaded from {} epoch {}".format(ckpt_pth, start_epoch))
 		else:
 			logger.info(">>> no ckpt exists")
-	src_pth = osp.join(dt_fd, '{}_hm.json'.format(srcNm))
+	src_pth = osp.join(dt_fd, '{}_hm.json'.format(srcNm_ld))       # the gt files
 	tar_pth = osp.join(dt_fd, '{}_hm.json'.format(tarNm))
 	if opts.if_gtSrc == 'y':
-		with open(src_pth, 'r') as f:
+		with open(src_pth, 'r') as f:   # original train set
 			dt_in = json.load(f)
 			f.close()
 		src_arr = np.array(dt_in)
@@ -298,15 +318,13 @@ def main():
 		f.close()
 	tar_arr = np.array(dt_in)   #  list
 
-	preds, gts = get_hm_arr_PA(opts)  # the pairded one
+	preds, gts = get_hm_arr_PA(opts)  # the pairded one, the prediction hm as test set
 	ds_test = P3D_D(preds, gts, opts, split='test')  #
 
 	if opts.if_gt_PA == 'y':        # use gt tar
-		ds_train = P3D_D(src_arr, gts, opts, split='train')     #
+		ds_train = P3D_D(src_arr, gts, opts, split='train')     # trainset
 	else:   # or use train split
 		ds_train = P3D_D(src_arr, tar_arr, opts, split='train')     #
-
-
 
 	train_loader = DataLoader(
 		dataset=ds_train,
@@ -379,10 +397,15 @@ def main():
 			loss_hd = sv_hd+'_clip'
 		else:
 			loss_hd = sv_hd
-		ut_t.sv_json(rst_dir, loss_hd, loss_li, 'L')  # PA_GD/result/ScanAva_Human36M-p2_L.json
+		ut_t.sv_json(rst_dir, loss_hd, loss_li, 'L')  # PA_GD/result/ScanAva_Human36M-p2_L.json, save loss
 
 	logger.info("err best is {}".format(err_best))
 	# loop final test report
+	# get best model
+	ckpt_pth = osp.join(model_dir, sv_hd + '_best.pth')  # if test , take the best one
+	ckpt = torch.load(ckpt_pth) #
+	G.load_state_dict(ckpt['G'])    # models reference to G, D
+	D.load_state_dict(ckpt['D'])
 	loss_test, err_test, preds = loop(models, test_loader, epoch, phase='test', logger=logger, crits=crits, optims=optims, opts_in=opts)
 
 	if tarset_PA == 'h36m-p1':
@@ -390,7 +413,12 @@ def main():
 	elif tarset_PA == 'h36m-p2':
 		pth_hd = 'Human36M_Btype-h36m_SBL-n_PA-n_exp_test_proto2'
 	elif tarset_PA == 'MuCo' or tarset_PA == 'MuPoTS':      # all same set using MuPoTS
-		pth_hd = 'MuPoTS_Btype-h36m_SBL-n_PA-n_exp_test'        # MuPoTS_Btype-h36m_SBL-n_PA-n_exp_test_pred_hm.npy
+		pth_hd = 'MuPoTS_Btype-h36m_SBL-n_PA-n_exp_test' # MuPoTS_Btype-h36m_SBL-n_PA-n_exp_test_pred_hm.npy
+	elif tarset_PA == 'ScanAva':
+		pth_hd = 'ScanAva_Btype-h36m_SBL-n_PA-n_exp_test'
+	elif tarset_PA == 'SURREAL':
+		pth_hd = 'SURREAL_Btype-h36m_SBL-n_PA-n_exp_test'
+
 	pth_hd = osp.join(opts.rst_dir, pth_hd)
 	sv_pth = pth_hd +'_pred_hm_PA{}.npy'.format(opts.PA_G_mode) #     # Human36M_Btype-h36m_SBL-n_PA-n_exp_train_proto2_pred_hm_PA1.npy
 	logger.info('saving hte PA test pm to {}'.format(sv_pth))

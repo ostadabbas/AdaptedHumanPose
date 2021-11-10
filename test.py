@@ -140,7 +140,7 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 				# ut_t.save_hm_tg3d(HM[0], sv_dir, n_jt=opts.ref_joints_num, idx=idx_test)  # only save the first HM here,
 				ut_t.save_Gfts_raw_tg3d(G_fts, sv_dir, idx=idx_test)  # only first 25 hm, also histogram of G_fts, only save raw
 				# HM front and side view
-				# ut_t.save_3d_tg3d(coord_out[0], sv_dir, skels_idx, idx=idx_test, suffix='hm')  # if need mm plot, can be done in eval part with ds infor, here only for HM version save to 3d hm
+				ut_t.save_3d_tg3d(coord_out[0], sv_dir, skels_idx, idx=idx_test, suffix='hm')  # if need mm plot, can be done in eval part with ds infor, here only for HM version save to 3d hm
 
 	preds = np.concatenate(preds, axis=0)  # x,y,z :HM preds = np.concatenate(preds, axis=0)   # x,y,z :HM  into vertical long one
 	targets = np.concatenate(targets, axis=0)
@@ -154,9 +154,7 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 		pred_json = {'pred':preds.tolist(), 'gt':targets.tolist()}
 		np.save(pred_pth, preds)        # save middle preds result
 		ut_t.sv_json(opts.rst_dir, pth_hd, pred_json, 'pred_hm')    # will to json
-
-	# if 'test' in ds_test.data_split:    # not eval large train data   all evaluated
-	ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_test, if_svVis=if_svVis, if_svEval=if_svEval, pth_hd=pth_hd)  # shoulddn't return, as different set different metric, some only save
+		ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_test, if_svVis=if_svVis, if_svEval=if_svEval, pth_hd=pth_hd)  # shoulddn't return, as different set different metric, some only save
 
 
 def main():
@@ -183,7 +181,7 @@ def main():
 		if_testLoad = False      # no GPU needed in this mode
 	else:
 		if_testLoad = True
-	if if_testLoad: # load or go loop
+	if if_testLoad: # load or go loop, load result , evaluate directly
 		if isinstance(ds_test, Human36M):  # split_flip-[y|n]_e{epoch}_[proto1/2]
 			pth_hd = osp.join(opts.rst_dir,'_'.join([opts.nmTest, ds_test.data_split, 'proto' + str(ds_test.protocol)]))  #
 		else:  # if not no protocol     nm: Human36M_Btype-h36m_SBL-n_PA-n_test_flip_y_proto2

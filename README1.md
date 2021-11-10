@@ -13,6 +13,7 @@
 </p>
 
 ## changes, need to do 
+* readme1 is original version  
 * install the [cocoapi](https://github.com/philferriere/cocoapi)
    this version supports windows. For linux, you can also use the offical release.    
 install the cocoapi
@@ -41,9 +42,41 @@ seaborn
 `scripts` for independent training scripts. 
 `scripts_v2` is built to accept 'train' or 'test' arguments.
 
-naming rules 
-SA ScanAva.  SR, SURREAL  
+### naming rules 
+SA ScanAva.  SR, SURREAL 
+PA-GD pose adaptation, G,D net 
+C1-not only patch D, but also fc for globally 
+P3D_GD, dataloader with ground truth and also the prediction and also skeleton
+camRt, in camera mm with pelvis root 
+data_files, the train split of gt . 
+test_sg[n], n tests with D0, C, C-yly ,  SA, SA-yly 
+smplBL , '/scratch/liu.shu/codesPool/3d_pose_baseline_pytorch/checkpoint' 
+there are 'ScanAva  ScanAva_cam  SURREAL  SURREAL_cam' save the 2d-3d lifting model.
+
+### to use 
+`gen_poseDs_hm.py` save the <ds>_hm.json ground truth jt.  
+  `collectRst`, collect the mpjpe, pckversionfor excel (gsheet).  Also generate the latex version of pck, mpjpe, mpjpe-pa with &. 
+  
+ `train_PA_GD` model save to 'output/PA_GD/model_dump', src_tar_[neck].pth 
+ * first test aginst `testset` `test_par:train`, generate the pred_pm.py. Then train PA_GD. 
+ The train is based on the average bone of target set (used testset) 
+ `if_gt_PA` if use the gt instead of esimtated as the source. 
+ --if_test_PA, control if tet only 
+ rst: save to `SURREAL_Btype-h36m_SBL-n_PA-n_exp_test_pred_hm_PA2.npy` the PA2 is the PA mode. 
  
+ The SPA model,  `ckpt_h36m-p1_VPR-n_best.pth`. from current model regress to ?  
+ `'Human36M_Btype-h36m_SBL-n_PA-n_exp_test_proto1_pred_hm.json'`, the hm file keeps the prediction and json.    
+ 
+ `collectRst.py`, 
+ h36m-p2:   --synset Human36M --testset <nm> --lmd_D 0. 
+ 
+ ### prodcedure 
+ baseModel +- SBL  ->  pred_hm  
+                       |--->PA_GD -> pred_hm_PA2  
+ all goes to  evaluation  --> run pred again  
+                          --> load previous  ( PA2?) if_hm_PA 
+                              load other version  (eg: -- smplBL ScanAva) 
+                              
  	
 ## Introduction
 

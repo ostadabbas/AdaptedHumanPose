@@ -27,7 +27,7 @@ from utils.evaluate import evaluate
 class SURREAL:
 
 	joint_num = 25  # for std   put 9 to torso, double neck to head top  , neck is thorax , head-> neck,  Collar to shoulder
-	joint_num_ori = 24  # truth labeled jts,
+	joint_num_ori = 24  # truth labeled jts, first 24 is true
 	joints_name = part_match = ('Pelvis', 'R_Hip', 'L_Hip',
              'Spine1', 'R_Knee','L_Knee', 'Spine2',
              'R_Ankle', 'L_Ankle', 'Torso', 'R_Foot',
@@ -62,9 +62,13 @@ class SURREAL:
 		self.data_split = data_split
 		self.opts = opts
 		self.ds_dir = opts.ds_dir
-		self.img_dir = osp.join(opts.ds_dir, 'train_surreal_images')
-		self.annot_path = osp.join(opts.ds_dir, 'train_surreal_images')
-		self.human_bbox_root_dir = osp.join(opts.ds_dir, 'train_surreal_images', 'bbox_root', 'bbox_root_surreal_output.json')
+		if opts.test_par == 'demo':
+			dsNm = 'SURREAL_demo'
+		else:
+			dsNm = 'train_surreal_images'
+		self.img_dir = osp.join(opts.ds_dir, dsNm)
+		self.annot_path = osp.join(opts.ds_dir, dsNm)
+		self.human_bbox_root_dir = osp.join(opts.ds_dir, dsNm, 'bbox_root', 'bbox_root_surreal_output.json')
 		# self.boneLen2d_av_mm = self.boneLen2Dave_mm_cfg[opts.if_cmJoints]
 		self.joints_have_depth = True
 		self.root_idx = self.joints_name.index('Pelvis')
@@ -82,7 +86,7 @@ class SURREAL:
 	def get_subsampling_ratio(self):    # total 211443
 		if self.data_split == 'train':
 			return self.rt_SYN*self.train_rt
-		elif self.data_split == 'test':
+		elif self.data_split == 'test' or self.data_split == 'demo':
 			return 1
 		elif self.data_split == 'testInLoop':
 			return 10  #
@@ -136,6 +140,7 @@ class SURREAL:
 		for i in tqdm(smpl_rg, desc="Loading and augmenting SURREAL data..."):
 			# img_path = osp.join(self.img_dir, annos[i].get('img_path').split('ScanAva_1019')[-1][1:])  # always last one with or without root path
 			img_path = str(Path(self.img_dir) / Path(annos[i].get('image')))
+			# print(img_path)
 			# get subj name, check in nms_use and check if in sample ratio
 			if i % sampling_ratio != 0:  # not in sub sample
 				continue

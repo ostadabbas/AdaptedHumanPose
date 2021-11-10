@@ -43,7 +43,7 @@ def parseArgs():
 	parser.add_argument('--suffix_exp_train', default='exp', help='the manually given suffix for specific test')
 	parser.add_argument('--suffix_ptn_test', default='{testset}_Btype-{bone_type}_SBL-{smplBL}_PA-n', help='the suffix pattern to form name') # add simple baselline, start will change after training only one
 	parser.add_argument('--suffix_exp_test', default='exp', help='mannualy added suffix for test result')
-	parser.add_argument('--model', default='TaskGenNet', help='mannualy added suffix for test result')
+	parser.add_argument('--model', default='TaskGenNet', help='mannualy added suffix for test result')  # for MPPI:  MPPE_Human36M_p1/p2 or  MPPE_MuCo  depend what is trained on, hg3d  for the  MPI version
 	# -- ds specific
 	parser.add_argument('--h36mProto', default=2, type=int)
 
@@ -128,7 +128,7 @@ def parseArgs():
 	parser.add_argument('--if_gt_PA', default='n', help='if use the tarset gt skel to guide the PA') #  most tims similar
 	parser.add_argument('--if_continue_PA', default='n', help='if continue from scrath of PA, or try to load ') # --
 	parser.add_argument('--if_VPR', default='y', help='if use viewpoint randomization') #  only scale
-	parser.add_argument('--if_test_PA', default='n', help='if only test the PA net')    # --
+	parser.add_argument('--if_test_PA', default='n', help='if only test the PA net, no training will happen')    # --
 	parser.add_argument('--if_norm_PA', default='n', help='if normalize the PA vector.n') # -- keep original unit is better, normalize no much help
 	parser.add_argument('--if_neckRt', default='n', help='if neck rooted during mapping.') # -- keep original unit is better
 	parser.add_argument('--if_hm_PA', default='y', help='if run the pose adaptation at hm level.')  # -- always more practical
@@ -240,7 +240,7 @@ def set_env(opts):
 	suffix_train = (opts.suffix_ptn_train.format(
 		**vars(opts))) if opts.suffix_ptn_train != '' else ''  # vars return __dict__ attribute
 	nmT = '_'.join([nmT, suffix_train, opts.suffix_exp_train])  # ds+ ptn_suffix+ exp_suffix
-	if 'MPPE' in opts.model:        # specific for  the MPPE test session
+	if 'MPPE' in opts.model or 'hg3d' in opts.model or 'evoSkel' in opts.model:        # specific for  the MPPE test session
 		nmT = opts.model    # directly maped to it
 	else:
 		opts.name = nmT  # current experiment name

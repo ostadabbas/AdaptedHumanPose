@@ -10,6 +10,10 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import matplotlib.pyplot as plt
 import os.path as osp
 import json
+# import ex_check     # there is np in ex_check, but can't work here
+# from ex_check import np     # can import the module imported in another file
+
+
 
 ## basic
 # if 0:
@@ -28,13 +32,13 @@ import json
 # print(li2)
 
 ## numpy
-arr1 = np.arange(12).reshape(2,2,3)
-print(arr1)
-arr2 = arr1[:,0]
-arr3 = arr1[:, (0,)]
-print('arr2 is', arr2)      # 2d 0 1 2 6 7 8
-print('arr3 is', arr3)      # 3d 2 x 1  x3
-print('minus all c first row', arr1-arr3)
+# arr1 = np.arange(12).reshape(2,2,3)
+# print(arr1)
+# arr2 = arr1[:,0]
+# arr3 = arr1[:, (0,)]
+# print('arr2 is', arr2)      # 2d 0 1 2 6 7 8
+# print('arr3 is', arr3)      # 3d 2 x 1  x3
+# print('minus all c first row', arr1-arr3)
 
 ## string
 # print('{} haha'.format([1,2,3])) # formated, [1, 2, 3] haha
@@ -44,6 +48,7 @@ print('minus all c first row', arr1-arr3)
 # li_int = [int(wd) for wd in pth.split('/')]      # must has space
 # rst = int(pth.split('/')[-1][:-4])
 # print(type(rst))
+
 ## list
 # li1= []
 # li2 = [torch.nn.Linear(2,3)]
@@ -148,3 +153,7 @@ print('minus all c first row', arr1-arr3)
 # print(np.array(ds_in).shape)        # 100 x17 x 3 good
 # print('first sample', ds_in[0])
 
+## path operation
+input_folder = '/scratch/liu.shu/datasets/SURREAL_demo'
+rst = osp.split(input_folder)
+print(rst)

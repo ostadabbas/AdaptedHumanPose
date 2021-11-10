@@ -89,7 +89,7 @@ class ScanAva:
 	skeleton = nameToIdx(skels_name, joints_name)
 	eval_joint = nameToIdx(evals_name, joints_name)
 	if_SYN = True
-	f = (560, 560)
+	f = (560, 560)      # 512(pix)/32(mm, sensor) * 35(mm,f) = 560
 	c = (256, 256)      # in python this is righ pixel of center, so 255.5 should be nice
 
 	def __init__(self, data_split, opts={}):

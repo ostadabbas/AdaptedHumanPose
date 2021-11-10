@@ -86,7 +86,7 @@ class L_D_SA(torch.nn.Module):
 
 	def __call__(self, arg_in_D):
 		'''
-		for adversarial training, you should set tar_vec accordingly. eg, for D loss, set fake to 1, for G set fake to 0
+		for adversarial training, you should set tar_vec accordingly. eg, for D loss, set fake to 1, for G loss set fake to 0
 		:param prediction:
 		:param tar_vec:
 		:return:

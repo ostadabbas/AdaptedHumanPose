@@ -36,7 +36,7 @@ if 'Human36M' == testset:
 	pthHd = 'Human36M_Btype-h36m_SBL-{}_PA-n_exp_test_proto{}'.format(SBL, proto)      # part kept
 	outNm = 'Human36M_p{}'.format(proto)
 else:
-	pthHd = '{}_Btype-h36m_SBL-{}_PA-n_exp_test'.format(SBL, testset)
+	pthHd = '{}_Btype-h36m_SBL-{}_PA-n_exp_test'.format(testset, SBL)
 	outNm = '{}'.format(testset)
 
 eval_nm = pthHd + '_eval.json'
@@ -63,8 +63,9 @@ if not osp.exists(outFd):
 
 # real one
 # exp_li = [
-# 	"Human36M-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp",
-# 	"MuCo-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp",
+# 	# "Human36M-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp",
+# 	# "MuCo-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp",
+# 	"Human36M-ScanAva-MPII_res50_D0.02-l3k1-SA-psdt_lsgan_yl-y_regZ5_fG-n_lr0.001_exp"
 # ]
 
 # joint training yB-y
@@ -77,17 +78,18 @@ if not osp.exists(outFd):
 
 # test p-n, uda, sdt, l2k3
 # exp_li = [
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-pn_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-puda_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-psdt_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-psdt_lsgan_yl-y_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-pn_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-puda_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-psdt_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
-# 	'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-psdt_lsgan_yl-y_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-pn_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-puda_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-psdt_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-C-psdt_lsgan_yl-y_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-pn_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-puda_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-psdt_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
+	# 'ScanAva-MSCOCO-MPII_res50_D{}-l2k3-SA-psdt_lsgan_yl-y_regZ5_fG-n_lr0.001_exp'.format(lmd_D),
 # ]
 
-# test p-n, l3k1
+
+# test p-[n, sdt, udt] , l3k1
 exp_li = [
 	# '{}-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-n_regZ5_fG-n_lr0.001_exp'.format(synset),        # fixed  no D version
 	# '{}-MSCOCO-MPII_res50_D{}-l3k1-C-pn_{}_yl-n_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),
@@ -97,8 +99,9 @@ exp_li = [
 	# '{}-MSCOCO-MPII_res50_D{}-l3k1-SA-pn_{}_yl-n_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),
 	# '{}-MSCOCO-MPII_res50_D{}-l3k1-SA-puda_{}_yl-n_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),
 	# '{}-MSCOCO-MPII_res50_D{}-l3k1-SA-psdt_{}_yl-n_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),
-	# '{}-MSCOCO-MPII_res50_D{}-l3k1-SA-psdt_{}_yl-y_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),
-	'{}-MSCOCO-MPII_res50_D{}-l3k1-SA-pn_{}_yl-y_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),
+	'{}-MSCOCO-MPII_res50_D{}-l3k1-SA-psdt_{}_yl-y_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode),   # sdt version
+	# '{}-MSCOCO-MPII_res50_D{}-l3k1-SA-pn_{}_yl-y_regZ5_fG-n_lr0.001_exp'.format(synset, lmd_D, gan_mode), #
+	# '{}-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp'.format(synset), # real 3d
 ]
 
 # C1, SA1 test
@@ -154,14 +157,15 @@ for exp in exp_li:
 	f.write('\n')
 f.close()
 
-# open loop exp, get eval, write line  \n
+# open loop exp, get eval, write line  \n, for excel part
 with open(mp_ltx_pth, 'w') as f:
 	for exp in exp_li:
 		rstPth = osp.join('output', exp, 'result', eval_nm)
 		with open(rstPth) as f_in:
 			eval = json.load(f_in)
 		f_in.close()
-		p_err = eval['p2_err_act']    # for mpjpe
+		# p_err = eval['p2_err_act']    # for mpjpe
+		p_err = eval.get('p2_err_act', [])    # for mpjpe
 		p_av = eval['p2_err']
 		msg = ' '.join(['{:4.1f} &'.format(err) for err in p_err])
 		msg += '{:4.1f} \n'.format(p_av)
@@ -169,14 +173,14 @@ with open(mp_ltx_pth, 'w') as f:
 	f.close()
 print('save to {}'.format(mp_ltx_pth))
 
-# open loop exp, get eval, write line  \n
+# open loop exp, get eval, write line  \n, for latex file mp
 with open(mp_pa_ltx_pth, 'w') as f:
 	for exp in exp_li:
 		rstPth = osp.join('output', exp, 'result', eval_nm)
 		with open(rstPth) as f_in:
 			eval = json.load(f_in)
 		f_in.close()
-		p_err = eval['p1_err_act']  # for mpjpe
+		p_err = eval.get('p1_err_act', [])  # for mpjpe
 		p_av = eval['p1_err']
 		msg = ' '.join(['{:4.1f} &'.format(err) for err in p_err])
 		msg += '{:4.1f} \n'.format(p_av)
@@ -184,14 +188,15 @@ with open(mp_pa_ltx_pth, 'w') as f:
 	f.close()
 print('save to {}'.format(mp_pa_ltx_pth))
 
-with open(pck_ltx_pth, 'w') as f:
+with open(pck_ltx_pth, 'w') as f:   # latex pck
 	for exp in exp_li:
 		rstPth = osp.join('output', exp, 'result', pck_nm)
 		with open(rstPth) as f_in:
 			eval = json.load(f_in)
 		f_in.close()
-		p_err = eval['pck_v_li']  # for mpjpe
-		p_err = [e[-1] for e in p_err]  # only take last
+		p_err = eval.get('pck_v_li', [])  # for mpjpe
+		if p_err:
+			p_err = [e[-1] for e in p_err]  # only take last
 		p_av = eval['pck_v_tot'][-1]
 		auc_av = eval['auc_tot']
 		msg = ' '.join(['{:4.1f} &'.format(err*100) for err in p_err])

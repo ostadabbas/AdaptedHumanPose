@@ -16,7 +16,7 @@ from opt import opts
 if __name__ == '__main__':
 	vis_dir = opts.vis_dir
 	ts_sets = os.listdir(vis_dir)
-	tar_size  = (256, 256)
+	tar_size = (256, 256)
 	for set in ts_sets:
 		set_fd = osp.join(vis_dir, set)
 		cmb_fd = osp.join(set_fd, '2d3d')

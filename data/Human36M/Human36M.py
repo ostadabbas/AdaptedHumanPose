@@ -82,6 +82,8 @@ class Human36M:
 			return 64
 		elif self.data_split == 'testInLoop':
 			return 640  # 10 folds of the full test
+		elif self.data_split == 'demo':
+			return 1
 		else:
 			assert 0, print('Unknown subset')
 
@@ -96,6 +98,8 @@ class Human36M:
 				subject = [11]
 			elif self.protocol == 2:
 				subject = [9, 11]
+		elif self.data_split == 'demo':    # for demo video generation
+			subject = [9]       # only subj 9
 		else:
 			assert 0, print("Unknown subset")
 

@@ -21,7 +21,7 @@ This repo is developed with python 3.8, CUDA 10.2.
  
 * naming rules:  
 SA ScanAva.  SR, SURREAL  
-
+ 
 ## Data Deployment
 
 *`SURREAL`   data preparation scripts are provided in `dataPrep` folder. You need to get a user name and password from the SURREAL team first then use our script to generate SURREAL, please refer there readme inside. 
@@ -91,7 +91,19 @@ After generate the result. Generate the `ScanAva-SAA-jt2d-SPA` result.
 Run `SPA` evaluation: 
 `python test.py --if_loadPreds y`    
 
+to evaluate sota with SPA
+evaluate with pretrained hg3d 
+`source scripts/test_hg3d.sbatch <dsNm>`
+then generate the SPA version  
+`source scripts/test_PA_GD.sbatch <testSet>` 
+get the SPA evaluation by loading in the SPA rst 
+`source scripts/test_hg3d.sbatch <dsNm> y` 
+
 Fort Other details, **RELEASE_UPON_ACCEPTANCE**
+
+## vis  
+single , save 2d+img and 3d separately 
+multi, image + 3d skeleton 
 
 ## Reference
 **RELEASE_UPON_ACCEPTANCE**

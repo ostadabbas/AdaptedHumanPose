@@ -13,13 +13,13 @@
 # model needs to be changed to  MPPE_h36m-p2 as expNm , test the pretraind performance
 source activate pch1.5
 python test_MPPE.py \
---model MPPE \
+--model MPPE_Human36M_p2 \
 --lmd_D 0.02 \
 --mode_D SA \
 --pivot sdt \
 --gan_mode lsgan \
 --if_ylB y \
---testset ${1}  \
---h36mProto ${2} \
---test_par ${3} \
+--testset ${1:-ScanAva}  \
+--h36mProto ${2:-2} \
+--test_par ${3:-test} \
 --if_loadPreds n

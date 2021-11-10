@@ -24,6 +24,6 @@ python test.py \
 --gan_mode lsgan \
 --if_ylB y \
 --testset ${2}  \
---h36mProto ${3} \
---test_par ${4} \
+--h36mProto ${3:-2} \
+--test_par ${4:-test} \
 --if_loadPreds y

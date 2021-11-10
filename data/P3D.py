@@ -17,7 +17,8 @@ idx_thorax = 8  #
 class P3D_D(Dataset):
 	def __init__(self, preds, gts, opts=None, split='train', deg_rng=[30, 180, 30], scal_rng=[0.8, 1.2]):
 		'''
-		the D version feeding, get src and tar json path. feed back with skeleton
+		the D version feeding, get src and tar json path. feed back with pred_tch, gt_tch, skel_pred, skel_tar,  pred , gt ( matched or not matched) ,
+		skeletons
 		:param opts:
 		:param split:
 		:param deg_rng: the rotation range of transformation.

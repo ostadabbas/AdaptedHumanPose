@@ -57,7 +57,7 @@ def main():
 	# 	# MuCo(phase, opts)
 	# ]
 	if 'Human36M' in dsNm:
-		ds = Human36M(phase, opts)
+		ds = Human36M(phase, opts)      # no augmentation.
 	else:
 		ds = eval(dsNm)(phase, opts)
 

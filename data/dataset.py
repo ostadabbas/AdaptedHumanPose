@@ -39,7 +39,7 @@ class AdpDataset_3d(Dataset):
 		if not transform:  # if not given, give tensor normalization to overide
 			transform = transforms.Compose([
 				transforms.ToTensor(),
-				transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])
+				transforms.Normalize(mean=opts.pixel_mean, std=opts.pixel_std)])    # maybe image needs to be normalized
 
 		self.transform = transform
 		self.is_train = is_train
@@ -79,7 +79,7 @@ class AdpDataset_3d(Dataset):
 
 		# 3. crop patch from img and perform data augmentation (flip, rot, color scale, synthetic occlusion)
 		img_patch, trans = generate_patch_image(cvimg, bbox, do_flip, scale, rot, do_occlusion,
-		                                        input_shape=self.opts.input_shape)
+		                                        input_shape=self.opts.input_shape)  # rgb, 255 still
 		for i in range(img_channels):
 			img_patch[:, :, i] = np.clip(img_patch[:, :, i] * color_scale[i], 0, 255)
 
@@ -136,7 +136,7 @@ class AdpDataset_3d(Dataset):
 		# change coordinates to output space the hmap space (usually 64 or 32 )
 		joint_img[:, 0] = joint_img[:, 0] / self.opts.input_shape[1] * self.opts.output_shape[1]    # 64 x 64
 		joint_img[:, 1] = joint_img[:, 1] / self.opts.input_shape[0] * self.opts.output_shape[0]
-		joint_img[:, 2] = joint_img[:, 2] * self.opts.depth_dim  # 0 ~ depth_dim
+		joint_img[:, 2] = joint_img[:, 2] * self.opts.depth_dim  # 0 ~ depth_dim, from 1 to 64
 
 		# if self.is_train: # ds completeness assumption, can feed all always
 		img_patch = self.transform(img_patch)
@@ -153,6 +153,13 @@ class AdpDataset_3d(Dataset):
 
 		# make gauss_hm # n_stg:4 x n_jt:17 [sz * sz]
 		# shp_t = self.opts.output_shape
+
+		# add the evoSkel ds
+		joint_evoSkel = np.zeros([16,2])  # the std joint evo , 0 to 8 10 ~ 16  16 joints
+		joint_evoSkel[:9] = joint_img[:9, :2]
+		joint_evoSkel[9:] = joint_img[10:, :2]
+		joint_evoSkel = (joint_evoSkel - joint_evoSkel.mean(axis=0))/joint_evoSkel.std(axis=0)
+		joint_evoSkel = joint_evoSkel.flatten()
 
 		wht = np.zeros([joint_num_ref, 8, 8])   # n_jt x 8 x 8  hardwired features space
 		# print(joint_img)
@@ -190,7 +197,8 @@ class AdpDataset_3d(Dataset):
 
 		# return img_patch, joint_img, joint_vis, joints_have_depth # single item
 		return {'img_patch': img_patch}, {'joint_hm': joint_img, 'vis': joint_vis, 'if_depth_v': joints_have_depth,
-		                                  'if_SYN_v': if_SYN, 'wts_D':wht, 'joint_img': joint_img_ori}  # only image transformed to tensor other still np,  li2_gs  4x17[ 1x64x64]      # for regression later
+		                                  'if_SYN_v': if_SYN, 'wts_D':wht, 'joint_img': joint_img_ori,
+		                                  'joint_hm_es': joint_evoSkel}  # only image transformed to tensor other still np,  li2_gs  4x17[ 1x64x64]      # for regression later
 
 	# else:
 	# 	img_patch = self.transform(img_patch)   # optional data feed

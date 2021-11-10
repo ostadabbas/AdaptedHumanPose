@@ -114,7 +114,7 @@ def loop(model, DL, epoch, phase='train', logger=None, **kwargs):
 	av_loss = np.array(li_loss).mean()
 
 	# give alignments
-	f_prt('{:5} epoch {:3} time:{:5.3f} av_loss: {:5.3f}, av_err:{:5.3f} av_align_err:{:4.2f}'.format(phase, epoch, time()-epoch_st_tm, av_loss, av_err, av_align_err))
+	f_prt('{:5} epoch {:3} time:{:5.3f} av_loss: {:5.3f}, av_err:{:5.3f} av_align_err:{:4.3f}'.format(phase, epoch, time()-epoch_st_tm, av_loss, av_err, av_align_err))
 
 	return av_loss, av_err, preds
 

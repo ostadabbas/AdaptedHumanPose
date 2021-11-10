@@ -10,6 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.use('Agg')
+import re
 
 import sys
 import ntpath
@@ -27,7 +28,7 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 sns.set_style('whitegrid')
 import json
-
+import utils.utils_tool as ut_t
 
 def vis_keypoints(img, kps, kps_lines, kp_thresh=0.4, alpha=1):
     '''
@@ -499,3 +500,54 @@ def tsne_plot(folder, output_file_path, ds_li, max_num_samples_per_dataset=30, s
         with open(osp.join(folder, 'tsne_rst.json'), 'w') as f:       # can be reploting with rename
             json.dump(rst, f)
             f.close()
+
+def cmb2d3d(set_fd, nm_2d='2d', nm_3d='3d_hm'):
+    '''
+    combine the 2d and 3d files
+    :param vis_fd:
+    :return:
+    '''
+    cmb_fd = osp.join(set_fd, '2d3d')
+    ut_t.make_folder(cmb_fd)
+    fd_2d = osp.join(set_fd, '2d')
+    f_nms = os.listdir(fd_2d)
+    tar_size = (256, 256)
+    for nm in tqdm(f_nms, desc='combining {}'.format(osp.basename(set_fd))):
+        img_pth = osp.join(set_fd, '2d', nm)
+        img_2d = cv2.imread(img_pth)
+        img_pth = osp.join(set_fd, '3d_hm', nm)
+        img_3d = cv2.imread(img_pth)
+        img_2d = cv2.resize(img_2d, tar_size)
+        img_3d = cv2.resize(img_3d, tar_size)
+        img_cmb = np.concatenate([img_2d, img_3d], axis=1)
+        cv2.imwrite(osp.join(cmb_fd, nm), img_cmb)
+
+
+def genVid(fd, nm=None, fps=30, svFd='output/vid'):
+    '''
+    from the target folder, generate the video with given fps to folder
+    svFd with name of the fd last name.
+    :param fd:
+    :param svFd:
+    :param fps:
+    :return:
+    '''
+    if not os.path.exists(svFd):
+        os.makedirs(svFd)
+    if not nm:
+        nm = os.path.basename(fd)
+    f_li = os.listdir(fd)
+    f_li.sort(key=lambda f: int(re.sub('\D', '', f)))
+    if not f_li:
+        print('no images found in target dir')
+        return
+    img = cv2.imread(os.path.join(os.path.join(fd, f_li[0])))
+    # make vid handle
+    sz = (img.shape[1], img.shape[0])
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    video = cv2.VideoWriter(os.path.join(svFd, nm + '.mp4'), fourcc, fps, sz)
+    for nm in f_li:
+        fname = os.path.join(os.path.join(fd, nm))
+        img = cv2.imread(fname)
+        video.write(img)
+    video.release()

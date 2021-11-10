@@ -8,6 +8,7 @@ import cv2
 import random
 import math
 from utils.utils_pose import pixel2cam, get_bbox, warp_coord_to_ori
+from data import dataset
 from utils.evaluate import evaluate, prt_rst
 import utils.utils_tool as ut_t
 from utils.vis import vis_keypoints, vis_3d_skeleton
@@ -160,7 +161,7 @@ class MuPoTS:
         assert (len(preds) <= len(gts))  # can be smaller
         # gts = gts[:len(preds)]  # take part of it
         # joint_num = self.joint_num
-        if self.data_split == 'test':
+        if self.data_split == 'test':   # if do the PA align , save time
             if_align = True
         else:
             if_align =False     # for slim evaluation
