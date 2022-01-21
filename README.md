@@ -85,6 +85,8 @@ This also includes the initial estimation of SAA  `*pred_hm.json` for later SPA 
 
 * Integral Human (Sun, ICCV'18) trained on Human36M+MSCOCO+MPII [[link]](http://www.coe.neu.edu/Research/AClab/AHuP/Human36M-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp.zip). This is to demo the SPA to improve SOTA cross set performance. 
 
+* Hg3d (Zhou, ICCV'17) official Release with our folder structure [[link]](http://www.coe.neu.edu/Research/AClab/AHuP/hg3d.zip). This is to demo the SPA to improve SOTA cross set performance. 
+
 * Skeletal Pose Adaptation (SPA) [[link]](http://www.coe.neu.edu/Research/AClab/AHuP/)
 `output/GD_PA
 `
