@@ -6,7 +6,7 @@
 #SBATCH --error=SA_A.%j.err
 
 python3 ex_tsne.py \
--f /scratch/liu.shu/codesPool/taskGen3d/output/ScanAva-MSCOCO-MPII_res50_n-scraG_0.1D2_y-yl_1rtSYN_regZ10_n-fG_y-nmBone_adam_lr0.001_exp/vis/train \
+-f /scratch/liu.shu/codesPool/AHuP/output/ScanAva-MSCOCO-MPII_res50_n-scraG_0.1D2_y-yl_1rtSYN_regZ10_n-fG_y-nmBone_adam_lr0.001_exp/vis/train \
 -m 200 \
 --exp sa_aaic
 

@@ -5,9 +5,7 @@ import argparse
 from tqdm import tqdm
 import numpy as np
 import cv2
-# from config import cfg
 import torch
-# from base import Tester
 from utils.vis import vis_keypoints
 from utils.utils_pose import flip
 from data import dataset
@@ -16,7 +14,7 @@ from opt import opts, print_options
 import os
 import os.path as osp
 from utils.logger import Colorlogger
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from data.dataset import genLoaderFromDs
 import utils.utils_tool as ut_t
 import math
@@ -48,7 +46,7 @@ if __name__=='__main__':
 	input = {'img_patch': img_ts.unsqueeze(0)}
 
 	# model
-	model = TaskGenNet(opts)  # with initialization already, already GPU-par
+	model = SAA(opts)  # with initialization already, already GPU-par
 	if 0 == opts.start_epoch and 'y' == opts.if_scraG:
 		model.load_bb_pretrain()  # init backbone
 	elif opts.start_epoch > 0:  # load the epoch model

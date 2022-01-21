@@ -6,7 +6,7 @@ import torch.backends.cudnn as cudnn
 import os
 import os.path as osp
 from opt import opts, set_env
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from utils.timer import Timer
 import test
 from data.dataset import genDsLoader
@@ -50,7 +50,7 @@ def main():
 		# itr_per_epoch = min(itr_per_epoch, opts.trainIter)
 		itr_per_epoch = opts.trainIter  # hard set iteration number
 	# make models with opt specific
-	model = TaskGenNet(opts) # with initialization already, already GPU-par
+	model = SAA(opts) # with initialization already, already GPU-par
 	if 0 == opts.start_epoch and 'y' != opts.if_scraG:
 		logger_train.info('loading pretrained backbone G')
 		model.load_bb_pretrain()  # init backbone

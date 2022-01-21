@@ -1,28 +1,16 @@
 '''
-model and operation design for task generation
+AHuP , SAA model
 '''
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from models.resnet import ResNetBackbone
-
-import os
-import os.path as osp
-import math
-import time
-import glob
-import abc
-from torch.utils.data import DataLoader
 import torch.optim
-import torchvision.transforms as transforms
 from .base_model import BaseModel
 from .resnet import ResNetBackbone
 from .networks import define_D, init_net, D_SA
 from .nadam import Nadam
 from .criterion import GANloss_vec, GANloss_SA, L_D_SA
-
-import opt
 
 
 class HeadNet(nn.Module):
@@ -78,14 +66,14 @@ class HeadNet(nn.Module):
 				nn.init.constant_(m.bias, 0)
 
 
-class TaskGenNet(BaseModel):
+class SAA(BaseModel):
 	'''
 	task generation network for 3D human.
 	todo save/load scheduler
 	'''
 
 	def __init__(self, opts, if_train=True):
-		super(TaskGenNet, self).__init__(opts)
+		super(SAA, self).__init__(opts)
 		# backbone(G), headnet(T, task), netD
 		# optimizer G, T, D
 		# if continue, find latest epoch_start, otherwise 0
@@ -129,8 +117,6 @@ class TaskGenNet(BaseModel):
 			self.if_D = False
 
 		if if_train:
-			# criterion, T use abs directly
-			# optimizer
 
 			if optimT == Nadam:
 				betas = (0.9, 0.999)        # for nadam default
@@ -202,14 +188,6 @@ class TaskGenNet(BaseModel):
 		# netD(G_fts) input list of features, return list of features
 		# li_rst_D  against the if_SYN,
 
-		# this is for the  SA version
-		# if type(self.G_fts) is list:    # from net G, suppose to be a list
-		# 	# make another detatched list
-		# 	G_fts_de = []
-		# 	for ft in self.G_fts:   # list[4]
-		# 		G_fts_de.append(ft.detach())
-		# else:
-
 		G_fts_de = self.G_fts.detach()
 		pred_D = self.netD(G_fts_de)  # no affecting G expect 4d weight 128,64, 3,3, input 3d  [256, 64, 64]
 		whts = self.whts_D  # set the weights D later, should be same size  N x hm
@@ -241,8 +219,7 @@ class TaskGenNet(BaseModel):
 		if self.if_D:
 			pred_D = self.netD(self.G_fts)  # avoid affecting G. Wrong should attatch
 			whts = self.whts_D  # opt in loss funct
-			# if_SYNs_rev = torch.zeros_like(self.tgt_if_SYNs)    # all confused to real
-			# if_SYNs_rev = torch.zeros_like(self.tgt_if_SYNs)    # all confused to real
+
 			if self.pivot == 'sdt':     # sdt specific syn rev
 				if_SYNs_rev = torch.ones_like(self.tgt_if_SYNs)*0.5        # all even
 			else:       # for both uda, and  inverse label
@@ -252,7 +229,6 @@ class TaskGenNet(BaseModel):
 				idx_smpl = self.tgt_if_SYNs.view(-1) == 0  # only keeps the real ones
 			else:    # keep all
 				N = self.tgt_if_SYNs.shape[0]
-				# idx_smpl = torch.ones(N).type(torch.bool)
 				idx_smpl = torch.tensor([True] * N, dtype=bool)     # similar to above
 				# arg_in_D = {'preds': pred_D, 'if_SYNs': if_SYNs_rev, 'whts': whts}  # 16 ch wht    reverse if syn order wrong
 
@@ -275,12 +251,6 @@ class TaskGenNet(BaseModel):
 
 		# task loss, back
 		loss_coord = torch.abs(self.coord - self.tgt_coord) * self.tgt_vis  # vis based loss, original 3DMPPE gives abs
-		# if_dbg = False
-		# if if_dbg:
-		# 	tgt_np = self.tgt_coord.cpu().detach().numpy()
-		# 	tgt_min = tgt_np[:,:,:2].min(axis=[1,2])
-		# 	print(tgt_min<0)        # if x, y there is smaller than 0
-		# 	print(self.tgt_vis)
 
 		loss_coord = (loss_coord[:,:,0] + loss_coord[:, :, 1] + loss_coord[:, :, 2] * self.tgt_have_depth * self.if_z) /3.      # get rid of z part
 		self.loss_T = loss_coord.mean()
@@ -302,15 +272,6 @@ class TaskGenNet(BaseModel):
 			self.tgt_have_depth = target['if_depth_v'].to(self.device)
 			self.tgt_if_SYNs = target['if_SYN_v'].to(self.device)       # 120 x 1
 			self.whts_D = target['wts_D'].to(self.device)  # give weights D in feeder
-
-			# if self.opts.mode_D == 'SA':    # semantic aware gaussian
-			# 	self.li2_gs = target['li2_gs']  # list 4 x 17 list each position li[i][j] will be batched
-			# 	for i in range(self.opts.n_stg_D):  # gauss to device
-			# 		for j in range(self.joint_num):
-			# 			self.li2_gs[i][j] = self.li2_gs[i][j].to(self.device)
-			# else:
-			# 	self.li2_gs = None
-
 
 	def optimize_parameters(self):
 		self.forward()

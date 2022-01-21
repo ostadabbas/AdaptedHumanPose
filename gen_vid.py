@@ -14,7 +14,7 @@ from opt import opts, print_options, set_env
 import os
 import os.path as osp
 from utils.logger import Colorlogger
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 import utils.utils_tool as ut_t
 from utils import vis
 import math
@@ -41,7 +41,7 @@ def main():
 	logger_testFinal = Colorlogger(opts.log_dir, 'testFinal_logs.txt')
 
 	# creating models
-	model = TaskGenNet(opts)  # with initialization already, already GPU-par
+	model = SAA(opts)  # with initialization already, already GPU-par
 	logger_testFinal.info('>>> models created!! ')
 	ds_test = eval(opts.testset)(opts.test_par, opts=opts)  # feet demo here
 	logger_testFinal.info('>>> {} test set created'.format(opts.testset))

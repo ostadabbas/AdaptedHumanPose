@@ -13,7 +13,7 @@
 </p>
 
 ## changes, need to do 
-* readme1 is original version  
+* readme1 is original version  by adding dev notes. 
 * install the [cocoapi](https://github.com/philferriere/cocoapi)
    this version supports windows. For linux, you can also use the offical release.    
 install the cocoapi
@@ -52,12 +52,16 @@ data_files, the train split of gt .
 test_sg[n], n tests with D0, C, C-yly ,  SA, SA-yly 
 smplBL , '/scratch/liu.shu/codesPool/3d_pose_baseline_pytorch/checkpoint' 
 there are 'ScanAva  ScanAva_cam  SURREAL  SURREAL_cam' save the 2d-3d lifting model.
+`evoSkel` has not model_dump inside. Only for test output holding.
+`pred_hm.json` prediction in hm coord 
+`pred_hm_stat.json` for the statistics such as mu and std   
 
 ### to use 
 `gen_poseDs_hm.py` save the <ds>_hm.json ground truth jt.  
   `collectRst`, collect the mpjpe, pckversionfor excel (gsheet).  Also generate the latex version of pck, mpjpe, mpjpe-pa with &. 
   
  `train_PA_GD` model save to 'output/PA_GD/model_dump', src_tar_[neck].pth 
+ each time train, will overwrite the `PA_GD` model. 
  * first test aginst `testset` `test_par:train`, generate the pred_pm.py. Then train PA_GD. 
  The train is based on the average bone of target set (used testset) 
  `if_gt_PA` if use the gt instead of esimtated as the source. 
@@ -76,7 +80,20 @@ there are 'ScanAva  ScanAva_cam  SURREAL  SURREAL_cam' save the 2d-3d lifting mo
  all goes to  evaluation  --> run pred again  
                           --> load previous  ( PA2?) if_hm_PA 
                               load other version  (eg: -- smplBL ScanAva) 
-                              
+
+### result 
+Real intergral human result: 
+Human36M-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp
+MuCo-MSCOCO-MPII_res50_D0.0-l3k1-SA-pn_lsgan_yl-y_regZ5_fG-n_lr0.001_exp
+
+GD_PA only keeps src_tar model transfer. (the leading 3d model) 
+hg3d seems to use the pretrained  GD_PA model from 'intergral human' 
+
+
+### vis
+some notes for vis.   
+single , save 2d+img and 3d separately 
+multi, image + 3d skeleton                               
  	
 ## Introduction
 

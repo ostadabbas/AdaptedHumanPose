@@ -56,17 +56,12 @@ class GANloss_vec(torch.nn.Module):
 			loss = self.loss(prediction, tar_temp)
 		else:
 			raise ValueError('{} mode not implemented'.format(self.gan_mode))
-		# elif self.gan_mode == 'wgangp':   # target real, more one more real
-		# 	if target_is_real:
-		# 		loss = -prediction.mean()
-		# 	else:
-		# 		loss = prediction.mean()
 		return loss
 
 
 class L_D_SA(torch.nn.Module):
 	'''
-	loss D , SA, compatible with conventional
+	loss D for SAA , compatible with conventional D.
 	'''
 
 	def __init__(self, gan_mode='lsgan', mode_L='C'):

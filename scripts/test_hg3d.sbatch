@@ -1,19 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=taskGen3d
+#SBATCH --job-name=AHuP
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=5
 #SBATCH --partition=multigpu
 #SBATCH --gres=gpu:v100-sxm2:1	 # resource
 #SBATCH --mem=128Gb
 #SBATCH --time=24:00:00
-#SBATCH --output=bch_outs/taskGen3d.%j.out
-#SBATCH --error=bch_outs/taskGen3d.%j.err
+#SBATCH --output=bch_outs/AHuP.%j.out
+#SBATCH --error=bch_outs/AHuP.%j.err
 # model needs to be changed to  hg3d (based on p2) as expNm , test the pretraind performance
-
 
 source activate pch1.5
 python test_hg3d.py \
---model evoSkel \
+--model hg3d \
 --lmd_D 0.02 \
 --mode_D SA \
 --pivot sdt \

@@ -14,7 +14,7 @@
 #echo input is ${1} ${2} ${3:-$haha}
 # call train_PA_GD for easy modification with sbatch head. Use sh at the moment or uncomment the activate env line.
 # mainly work on last line, pelvis,  gt train,  mode 2 skel_av, default ScanAva
-# DSA for 50  DSR for 5， lmd_skel_PA
+# DSA (dataset ScanAva) for 50  DSR for 5， lmd_skel_PA
 # f_gtSrc if use gt source or the predicted src ,
 # if_gt_PA, if use the test split target skletal descriptor.
 # lmd h36m ->  MuPoTS 2.,  ScanAva 50. SURREAL
@@ -23,6 +23,6 @@
 # the model name needs to be change correctly,  hg3d evoSkel
 source activate pch1.5
 cmd=python
-$cmd train_PA_GD.py --model evoSkel --trainset Human36M MSCOCO MPII --lmd_D 0.0 --pivot n --print_freq 100 \
+$cmd train_PA_GD.py --model ${3:-SAA} --trainset ${1:-Human36M} MSCOCO MPII --lmd_D 0.0 --pivot n --print_freq 100 \
 --lmd_G_PA 1 --lmd_D_PA 0. --lr_PA 1e-4 --if_clip_grad y --end_epoch_PA 70 --if_test_PA y \
---if_ylB y --lmd_skel_PA 50. --gamma_PA 0.95 --if_skel_MSE y --tarset_PA ${1:-ScanAva} --if_gt_PA n
+--if_ylB y --lmd_skel_PA 50. --gamma_PA 0.95 --if_skel_MSE y --tarset_PA ${2:-ScanAva} --if_gt_PA n

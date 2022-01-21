@@ -25,7 +25,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from utils.timer import Timer
 from utils.vis import Visualizer
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 import cv2
 import torch
 

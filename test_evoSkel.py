@@ -1,7 +1,7 @@
 '''
 specially test the 3DMPPE  net.
 model specifiied from the  exp name for MPPE.
-PA can furhter improve !!
+not seem to be improved from the record.
 '''
 import argparse
 from tqdm import tqdm
@@ -18,7 +18,7 @@ from opt import opts, print_options, set_env
 import os
 import os.path as osp
 from utils.logger import Colorlogger
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from data.dataset import genLoaderFromDs
 import utils.utils_tool as ut_t
 import math
@@ -149,8 +149,6 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 			if id_smplBL == 1:
 				pass # do the forwarding simple baseline directly get coord
 			else:       # for mode 0 and 2, ran main model.
-				# coord_out = model(input['img_patch']).clone()
-				# coord_out = coord_out[:, :-1, :]      # no last dim  no thorax
 				input_es = target['joint_hm_es'].cuda().float()     # 10 x 32
 				# print('input_es shape', input_es.shape)
 				pred = get_pred(model, input_es)        # cascade model
@@ -167,22 +165,6 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 				# print('pred shape', pred.shape) # 1 x 17 x 30
 				# copy hm 2d
 				pred[:,:,:2] = target['joint_hm'][:, :, :2].cpu().numpy() # all bch, all jt, first 2 dim same
-				# 2d to hm, 3rd  normalize from mm to hm can't 10x17x2 to 1x17x2
-				# if opts.flip_test: no flip
-				# 	img_patch = input['img_patch']
-				# 	flipped_input_img = flip(img_patch, dims=3)
-				# 	# model.set_input({'img_patch': flipped_input_img})
-				# 	# model.forward()
-				# 	# flipped_coord_out = model.coord.clone()
-				# 	flipped_coord_out = model(flipped_input_img).clone()
-				# 	flipped_coord_out = flipped_coord_out[:, :-1, :]
-				#
-				# 	flipped_coord_out[:, :, 0] = opts.output_shape[1] - flipped_coord_out[:, :, 0] - 1  # flip x coordinates
-				# 	for pair in opts.ref_flip_pairs:
-				# 		flipped_coord_out[:, pair[0], :], flipped_coord_out[:, pair[1], :] = flipped_coord_out[:, pair[1], :].clone(), flipped_coord_out[:, pair[0],:].clone()
-				#
-				# 	coord_out = (coord_out + flipped_coord_out) / 2.
-				# coord_out = coord_out.cpu().numpy()
 				coord_out = pred
 				if 2 == id_smplBL: # change coordinate  if 2 nd method
 					n_bch = len(coord_out)  # the batch size
@@ -249,11 +231,6 @@ def main():
 	# paths
 	data_dic_path = '/scratch/liu.shu/codesPool/EvoSkeleton/examples/example_annot.npy'
 	model_path = '/scratch/liu.shu/codesPool/EvoSkeleton/examples/example_model.th'
-	# stats = np.load('/scratch/liu.shu/codesPool/EvoSkeleton/stats.npy', allow_pickle=True).item()
-	# dim_used_2d = stats['dim_use_2d']
-	# mean_2d = stats['mean_2d']
-	# std_2d = stats['std_2d']
-	# load the checkpoint and statistics
 	ckpt = torch.load(model_path)
 	data_dic = np.load(data_dic_path, allow_pickle=True).item()
 	# initialize the model
@@ -293,8 +270,6 @@ def main():
 	print_options(opts)  # show options
 	# test Logger here
 	logger_testFinal = Colorlogger(opts.log_dir, 'testFinal_logs.txt')
-	# create model, load in the model we need with epoch number specified in opts
-	# ds_test = eval(opts.testset)("test", opts=opts)  # keep a test set
 
 	ds_test = eval(opts.testset)(opts.test_par, opts=opts)  # can test whatever set # (h36m, test)
 	if 'n' == opts.if_loadPreds:

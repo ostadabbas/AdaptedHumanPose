@@ -8,7 +8,8 @@
 #SBATCH --time=24:00:00
 #SBATCH --output=bch_outs/testh36m.%j.out
 #SBATCH --error=bch_outs/testh36m.%j.err
-# test the real 3d based models
+# test the real 3d based models h36+mscoco+mpii
+# 1 parameters train_3d_set, 2 testset, 3 test partition,  4 if_load pre estimated result.
 source activate pch1.5
 python test.py \
 --trainset ${1:-Human36M} MSCOCO MPII \
@@ -22,7 +23,7 @@ python test.py \
 --if_loadPreds ${4:-y} \
 --if_hm_PA y
 
-python collectRst.py \
---synset ${1:-Human36M} \
---testset ${2} \
---lmd_D 0.
+#python collectRst.py \
+#--synset ${1:-Human36M} \
+#--testset ${2} \
+#--lmd_D 0.

@@ -6,9 +6,7 @@ import argparse
 from tqdm import tqdm
 import numpy as np
 import cv2
-# from config import cfg
 import torch
-# from base import Tester
 from utils.vis import vis_keypoints
 from utils.utils_pose import flip
 from data import dataset
@@ -17,7 +15,7 @@ from opt import opts, print_options, set_env
 import os
 import os.path as osp
 from utils.logger import Colorlogger
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from data.dataset import genLoaderFromDs
 import utils.utils_tool as ut_t
 import math
@@ -172,7 +170,7 @@ def main():
 	logger_testFinal = Colorlogger(opts.log_dir, 'testFinal_logs.txt')
 
 	# creating models
-	model = TaskGenNet(opts)  # with initialization already, already GPU-par
+	model = SAA(opts)  # with initialization already, already GPU-par
 	logger_testFinal.info('>>> models created!! ')
 	ds_test = eval(opts.testset)(opts.test_par, opts=opts)  # can test whatever set
 	logger_testFinal.info('>>> {} test set created'.format(opts.testset))
@@ -193,16 +191,11 @@ def main():
 		preds = np.load(pred_pth)
 		ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_testFinal, if_svVis=True, if_svEval=True, pth_hd=pth_hd)
 	else:
-		# model = TaskGenNet(opts)  # with initialization already, already GPU-par
 		if 0 == opts.start_epoch and 'y' == opts.if_scraG:
 			model.load_bb_pretrain()  # init backbone
 		elif opts.start_epoch > 0:  # load the epoch model
 			model.load_networks(opts.start_epoch - 1)
 
-		# if 'test' == opts.test_par:       # only sav for test par, no needed
-		# 	if_svEval = True        # only save test eval
-		# else:       # other test , don't save.
-		# 	if_svEval = False
 		if_svEval = True        # all saved
 		testLoop(model, ds_test, opts=opts, logger_test=logger_testFinal, if_svEval=if_svEval, if_svVis=True)
 

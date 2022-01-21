@@ -1,3 +1,8 @@
+'''
+This file includes the light weighted fc models on pose data directly including
+Simple_baseline
+SPA for AHuP.
+'''
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
@@ -128,6 +133,7 @@ class SimpSBL(nn.Module):
 
 #  later change the paNet  ( pose
 class PAnet(nn.Module):
+    ''' The SPA net'''
     def __init__(self,
                  linear_size=1024,
                  num_stage=2,

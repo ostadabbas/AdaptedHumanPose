@@ -1,5 +1,5 @@
 '''
-the pose 3D loader
+the pose 3D loader. For SPA.
 '''
 from torch.utils.data import Dataset
 import os.path as osp

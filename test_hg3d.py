@@ -5,10 +5,7 @@ import argparse
 from tqdm import tqdm
 import numpy as np
 import cv2
-# from config import cfg
 import torch
-# from base import Tester
-from utils.vis import vis_keypoints
 from utils.utils_pose import flip
 from data import dataset
 import torch.backends.cudnn as cudnn
@@ -16,12 +13,11 @@ from opt import opts, print_options, set_env
 import os
 import os.path as osp
 from utils.logger import Colorlogger
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from data.dataset import genLoaderFromDs
 import utils.utils_tool as ut_t
 import math
 import json
-# from models.MPPE import get_pose_net
 from models.msra_resnet import get_pose_net
 from utils.config_MPPE import Config
 from torch.nn.parallel.data_parallel import DataParallel
@@ -62,20 +58,13 @@ def get_preds_3d(heatmap, depthmap):
 	# original everything to -1 ,1 here we map it to hm
 	output_res = max(heatmap.shape[2], heatmap.shape[3])  # resolution?
 	preds = get_preds(heatmap).astype(np.int32)  #
-	# print('heat map shape', heatmap.shape)
-	# print('preds is ', preds[0])
 	preds_3d = np.zeros((preds.shape[0], preds.shape[1], 3), dtype=np.float32)
 	for i in range(preds.shape[0]):
 		for j in range(preds.shape[1]):
 			idx = min(j, depthmap.shape[1] - 1)  # no exceed existing depth ch
 			pt = preds[i, j]
-			# preds_3d[i, j, 2] = depthmap[i, idx, pt[1], pt[0]]  # -1 to 1 assume
 			preds_3d[i, j, 2] = (depthmap[i, idx, pt[1], pt[0]]+1)/2  # -1 to 1 assume
 			preds_3d[i, j, :2] = 1.0 * preds[i, j] / output_res
-			# preds_3d[i, j, :2] = preds[i, j] # hm res
-		# original to -1 , 1
-		# preds_3d[i] = preds_3d[i] - preds_3d[i, 6:7]  # 6 is the root
-		# preds_3d[i,:,2] = preds_3d[i,:,2] - preds_3d[i, :, 6:7]  # 6 is the root, depth suppose to be -1 to 1
 	return preds_3d  # normalized x,y plus root centered depth,  bch x n_jt
 
 
@@ -157,13 +146,8 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 				                       out['depth'].detach().cpu().numpy())  # 0~1
 				coord_out_mpii = pred_3d*opts.output_shape[0]        # 64
 
-				# coord_out = torch.zeros([1,17,3]).clone()       #
 				coord_out = coord_out_mpii[:, mpii_to_h36m]   # n_bch, axis 1 size 3
-				# coord_out = model(input['img_patch']).clone()
-				# coord_out = coord_out[:, :-1, :]      # no last dim  no thorax
-				# print('coord_out 0', coord_out[0])
 				if opts.flip_test:
-					# img_patch = input['img_patch']
 					flipped_input_img = flip(img_patch, dims=3)
 					out_f = model(flipped_input_img)[-1]     # original direct pred3d
 					pred_3d_f = get_preds_3d(out_f['hm'].detach().cpu().numpy(),
@@ -177,9 +161,7 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 						flipped_coord_out[:, pair[0], :], flipped_coord_out[:, pair[1], :] = flipped_coord_out[:, pair[1], :].copy(), flipped_coord_out[:, pair[0],:].copy()        # original clone
 
 					coord_out = (coord_out + flipped_coord_out) / 2.
-				# print('after flip ave coord 0', coord_out[0])
 
-				# coord_out = coord_out.cpu().numpy()   # already in numpy  after get_preds_3d
 				# update the missing point
 				coord_out[:,7] = (coord_out[:, 0] + coord_out[:, 8]) / 2    #  torso
 				coord_out[:, 9] = (coord_out[:, 8] + coord_out[:, 10]) / 2   # site
@@ -251,14 +233,9 @@ def main():
 	print_options(opts)  # show options
 	# test Logger here
 	logger_testFinal = Colorlogger(opts.log_dir, 'testFinal_logs.txt')
-	# create model, load in the model we need with epoch number specified in opts
-	# ds_test = eval(opts.testset)("test", opts=opts)  # keep a test set
-
-	# cfg = Config()
 	model_path = os.path.join(opts.model_dir, 'fusion_3d_var.pth')        # 21 jt actually
 	assert os.path.exists(model_path), 'Cannot find model at ' + model_path
 	logger_testFinal.info('Load checkpoint from {}'.format(model_path))
-	#  model = get_pose_net(num_layers, opt.heads)   # heads{'hm':16,  'depth':16}
 	heads = {'hm':16, 'depth':16}
 	model = get_pose_net(50, heads)  # the thorax, 3 more!
 	# model = DataParallel(model).cuda()    #  hg3d no parallel
@@ -290,29 +267,6 @@ def main():
 		preds = np.load(pred_pth)
 		ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_testFinal, if_svVis=True, if_svEval=True, pth_hd=pth_hd)
 	else:       # env issue,  models earlier otherwise,  env error
-		# original
-		# model = TaskGenNet(opts)  # with initialization already, already GPU-par
-
-		# MPPE specific loding
-		# cfg = Config()
-		# model_path = os.path.join(opts.model_dir, 'snapshot_24.pth.tar')
-		# assert os.path.exists(model_path), 'Cannot find model at ' + model_path
-		# logger_testFinal.info('Load checkpoint from {}'.format(model_path))
-		# model = get_pose_net(cfg, False, opts.ref_joints_num+1)     # the thorax
-		# model = DataParallel(model).cuda()
-		# ckpt = torch.load(model_path)
-		# model.load_state_dict(ckpt['network'])      # final_layer.weight  copy 1152 current 1088  , final loaded in is 18
-		# model.eval()
-
-		#  original loading
-		# if 0 == opts.start_epoch and 'y' == opts.if_scraG:
-		# 	model.load_bb_pretrain()  # init backbone
-		# elif opts.start_epoch > 0:  # load the epoch model
-		# 	model.load_networks(opts.start_epoch - 1)
-		# # if 'test' == opts.test_par:
-		# 	if_svEval = True        # only save test eval
-		# else:       # other test , don't save.
-		# 	if_svEval = False
 		if_svEval = True        # all saved
 		testLoop(model, ds_test, opts=opts, logger_test=logger_testFinal, if_svEval=if_svEval, if_svVis=True)
 

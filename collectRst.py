@@ -1,6 +1,6 @@
 '''
 collect result from tested model.
-taskGen3d saved names,  rst: (raw pred),
+AHuP saved names,  rst: (raw pred),
 eval: p1_err, p2_err, z1,z2,
 3dpck:  pck_v_tot, auc_tot
  default='{testset}_Btype-{bone_type}_SBL-{smplBL}'

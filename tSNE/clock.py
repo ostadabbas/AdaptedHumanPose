@@ -3,14 +3,14 @@ import glob
 import cv2
 import os 
 import sys
-sys.path.append('/scratch/liu.shu/codesPool/taskGen3d')
+sys.path.append('/scratch/liu.shu/codesPool/AHuP')
 from data.dataset import genLoaderFromDs
 from opt import opts
 from utils.utils_pose import transform_joint_to_other_db
 from tqdm import tqdm
 import pickle
 
-train_folder = '/scratch/liu.shu/codesPool/taskGen3d/output/ScanAva-MSCOCO-MPII_res50_n-scraG_10.0D2_n-yl_1rtSYN_regZ0_n-fG_n-nmBone_adam_lr0.001_exp/vis/train'
+train_folder = '/scratch/liu.shu/codesPool/AHuP/output/ScanAva-MSCOCO-MPII_res50_n-scraG_10.0D2_n-yl_1rtSYN_regZ0_n-fG_n-nmBone_adam_lr0.001_exp/vis/train'
 datasets = ['MuPoTS', 'ScanAva', "SURREAL", 'Human36M']
 h36m_joints_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Thorax', 'Neck', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist') # max std joints, first joint_num_ori will be true labeled
 

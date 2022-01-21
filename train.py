@@ -1,12 +1,9 @@
-import argparse
-# from config import cfg
 import torch
-# from base import Trainer
 import torch.backends.cudnn as cudnn
 import os
 import os.path as osp
 from opt import opts, set_env
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from utils.timer import Timer
 import test
 from data.dataset import genDsLoader
@@ -14,7 +11,6 @@ import math
 from utils.logger import Colorlogger
 from utils.vis import Visualizer, vis_keypoints, vis_3d_skeleton
 from test import testLoop
-import pickle
 import numpy as np
 import utils.utils_tool as ut_t
 import cv2
@@ -54,7 +50,7 @@ def main():
 		itr_per_epoch =opts.trainIter       # hard set it
 
 	# make models with opt specific
-	model = TaskGenNet(opts) # with initialization already, already GPU-par
+	model = SAA(opts) # with initialization already, already GPU-par
 	if 0 == opts.start_epoch and 'y' != opts.if_scraG:
 		logger_train.info('loading pretrained backbone G')
 		model.load_bb_pretrain()  # init backbone
@@ -69,11 +65,6 @@ def main():
 			logger_train.info('load visualizer state from epoch {}'.format(opts.start_epoch-1))
 			visualizer.load(opts.start_epoch-1)
 
-	# trainer = Trainer()
-	# trainer._make_batch_generator(ds_dir=cfg.ds_dir)
-	# trainer._make_model()
-	# total timer (tot_timer), gpu_timer and reader_timer
-	# generate loggerTrain, loggerTest,
 	tot_timer = Timer()
 	gpu_timer = Timer()
 	read_timer = Timer()
@@ -109,12 +100,9 @@ def main():
 
 			for i in range(len(opts.trainset)):  # loop set each iter combine the data
 				try:
-					# input_img, joint_img, joint_vis, joints_have_depth, if_SYNs = next(iter_train_li[i])  # iter b
 					input, target = next(iter_train_li[i])
 				except StopIteration:
-					# trainer.iterator[i] = iter(trainer.batch_generator[i])  # set again suppose to be set already
 					iter_train_li[i] = iter(loader_train_li[i])  # set again suppose to be set already
-					# input_img, joint_img, joint_vis, joints_have_depth, if_SYN = next(iter_train_li[i])
 					input, target = next(iter_train_li[i])
 				# decomposed dict for concat
 				input_img = input['img_patch']
@@ -206,7 +194,7 @@ def main():
 				'%.2fh/epoch' % (tot_tm / 3600. * itr_per_epoch),
 				loss_str,
 			]
-			logger_train.info(' '.join(screen))
+			logger_train.info(' '.join(screen)) # show each iter
 			if opts.display_id > 0 and total_iters % opts.update_html_freq == 0:
 				idx_vis = 0
 				skels_idx = opts.ref_skels_idx
@@ -266,7 +254,6 @@ def main():
 	if epoch >= opts.end_epoch-1 and 'y' == opts.if_finalTest:  # only to final epoch ,do this test.
 		logger_test.info('perform final test')
 		test.testLoop(model, ds_test, opts=opts, logger_test=logger_testFinal, if_svEval=True, if_svVis=True)
-	# save final model  wtih epoch nuber
 
 
 if __name__ == "__main__":

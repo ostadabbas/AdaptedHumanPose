@@ -25,7 +25,7 @@ output_dir = '../output'       # DISC version
 mdl_ptn = 'ScanAva-MSCOCO-MPII_res50_n-scraG_{}D2_y-yl_1rtSYN_regZ0_n-fG_n-nmBone_adam_lr0.001_exp'
 pth_ptn = osp.join(output_dir, mdl_ptn, 'log', 'train_logs.txt')
 d_li = ['0.0', '0.01', '1.0', '10.0','100.0', '1000.0']
-# rst_fd = r'S:\ACLab\rst_model\taskGen3d\output\ScanAva-MSCOCO-MPII_res50_n-scraG_0.1D2_y-yl_1rtSYN_regZ10_n-fG_y-nmBone_adam_lr0.001_exp'
+# rst_fd = r'S:\ACLab\rst_model\AHuP\output\ScanAva-MSCOCO-MPII_res50_n-scraG_0.1D2_y-yl_1rtSYN_regZ10_n-fG_y-nmBone_adam_lr0.001_exp'
 # trainLog_pth = osp.join(rst_fd, 'log', 'train_logs.txt')
 smpl_rt = 100
 # show loss

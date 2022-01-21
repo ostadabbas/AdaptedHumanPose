@@ -17,7 +17,7 @@
 # DSA for 50  DSR for 5， lmd_skel_PA
 # f_gtSrc if use gt source or the predicted src ,
 # if_gt_PA, if use the test split target skletal descriptor.
-# lmd h36m ->  MuPoTS 2.,  ScanAva 50. SURREAL
+# lmd h36m ->  MuPoTS 2.,  ScanAva 50. SURREAL 5?
 # this is for adapting the Human36M or MuCo version
 # input ds3d: Human36M,   tarset_PA: h36m-p2,  lmd_skel_PA: 50.,  if_test_PA: y
 source activate pch1.5

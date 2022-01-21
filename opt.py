@@ -1,5 +1,5 @@
 '''
-Parse arguments for training. act as config
+Parse arguments for training. default for ScanAva-SAA-jt2d
 '''
 import os
 import os.path as osp
@@ -16,7 +16,7 @@ from data.Human36M.Human36M import Human36M
 evals_name_config = {
 	'h36m':Human36M.evals_name,
 	'scanava': ScanAva.evals_name,
-	'cmJoints': (
+	'cmJoints': (       # the similar shared joints
 	# "R_Ankle",
 	"R_Knee",
 	"R_Hip",
@@ -43,7 +43,7 @@ def parseArgs():
 	parser.add_argument('--suffix_exp_train', default='exp', help='the manually given suffix for specific test')
 	parser.add_argument('--suffix_ptn_test', default='{testset}_Btype-{bone_type}_SBL-{smplBL}_PA-n', help='the suffix pattern to form name') # add simple baselline, start will change after training only one
 	parser.add_argument('--suffix_exp_test', default='exp', help='mannualy added suffix for test result')
-	parser.add_argument('--model', default='TaskGenNet', help='mannualy added suffix for test result')  # for MPPI:  MPPE_Human36M_p1/p2 or  MPPE_MuCo  depend what is trained on, hg3d  for the  MPI version
+	parser.add_argument('--model', default='SAA', help='mannualy added suffix for test result')  # for MPPI:  MPPE_Human36M_p1/p2 or  MPPE_MuCo  depend what is trained on, hg3d  for the  MPI version
 	# -- ds specific
 	parser.add_argument('--h36mProto', default=2, type=int)
 
@@ -95,10 +95,10 @@ def parseArgs():
 	                    help='if positive, display all images in a single visdom web panel with certain number of images per row.')
 	parser.add_argument('--update_html_freq', type=int, default=20,
 	                    help='frequency of saving training results to html, def 1000 ')
-	parser.add_argument('--print_freq', type=int, default=10,
+	parser.add_argument('--print_freq', type=int, default=100,
 	                    help='frequency of showing training results on console, def 100')
 	parser.add_argument('--no_html', action='store_true',
-	                    help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
+	                    help='do not save intermediate training results toG [opt.checkpoints_dir]/[opt.name]/web/')
 
 	# -- test setting
 	parser.add_argument('--testset', default='Human36M', help='testset, usually single [Human3dM|ScanAva|MuPoTS|SURREAL]')
@@ -148,11 +148,7 @@ def parseArgs():
 
 
 	# hardwired parameters
-	# opts = parser.parse_args()   # all cmd infor
 	opts, _ = parser.parse_known_args()   # all cmd infor  # only known, 2nd part for f
-	# print(opts)
-	# print(opts.inp_sz)
-
 	# otherwise, do nothing use the current start_epoch
 	return opts
 
@@ -167,9 +163,6 @@ def print_options(opt, if_sv = False):
 	message += '----------------- Options ---------------\n'
 	for k, v in sorted(vars(opt).items()):
 		comment = ''
-		# default = self.parser.get_default(k)
-		# if v != default:
-		# 	comment = '\t[default: %s]' % str(default)
 		message += '{:>25}: {:<30}{}\n'.format(str(k), str(v), comment)
 	message += '----------------- End -------------------'
 	print(message)
@@ -230,8 +223,10 @@ def set_env(opts):
 
 	# Derived parameters, model, result part...
 	# form exp folder
+	print('before abs', opts.output_dir)
 	if not os.path.isabs(opts.output_dir):
 		opts.output_dir = os.path.abspath(opts.output_dir)
+	print('after abs', opts.output_dir)
 	opts.ref_joints_num = len(opts.ref_joints_name)  # how image output
 	opts.ref_evals_num = len(opts.ref_evals_name)  # could be smaller
 	nmT = '-'.join(opts.trainset)  # init
@@ -241,7 +236,7 @@ def set_env(opts):
 		**vars(opts))) if opts.suffix_ptn_train != '' else ''  # vars return __dict__ attribute
 	nmT = '_'.join([nmT, suffix_train, opts.suffix_exp_train])  # ds+ ptn_suffix+ exp_suffix
 	if 'MPPE' in opts.model or 'hg3d' in opts.model or 'evoSkel' in opts.model:        # specific for  the MPPE test session
-		nmT = opts.model    # directly maped to it
+		nmT = opts.model    # directly mapped to it
 	else:
 		opts.name = nmT  # current experiment name
 	opts.exp_dir = osp.join(opts.output_dir, nmT)

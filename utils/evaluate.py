@@ -282,7 +282,7 @@ def evaluate(preds, gts, joints_name, if_align=False, act_nm_li=None, fn_getIdx=
 		fn_prt('Test result save at {}'.format(pth_head))
 		sv_json(rst_dir, pth_head, rst_dict, sv_nm='rst')     # prediction result, original space
 		sv_json(rst_dir, pth_head, err_dict, 'eval')        # p1 p2 MPJPE mean per joint position error
-		sv_json(rst_dir, pth_head, pck_rst, '3dpck')
+		sv_json(rst_dir, pth_head, pck_rst, '3dpck')        # 3d pck
 		# save the root centered pred and also the
 		if True:
 			print('the shape of pred_camRt_li', np.array(pred_camRt_li).shape)

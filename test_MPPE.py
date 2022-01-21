@@ -18,7 +18,7 @@ from opt import opts, print_options, set_env
 import os
 import os.path as osp
 from utils.logger import Colorlogger
-from models.modelTG import TaskGenNet
+from models.SAA import SAA
 from data.dataset import genLoaderFromDs
 import utils.utils_tool as ut_t
 import math
@@ -100,12 +100,6 @@ def testLoop(model, ds_test, opts={}, logger_test=None, if_svEval=False, if_svVi
 				coord_out = model(input['img_patch']).clone()
 				coord_out = coord_out[:, :-1, :]      # no last dim  no thorax
 
-				# ori
-				# model.set_input(input, target)
-				# model.forward()
-				# coord_out = model.coord.clone()
-				# G_fts_in = model.G_fts  # will be  a list [ n_bch x c x h x w]
-				# G_fts = G_fts_in[0].cpu().numpy()  # to cpu  mem   only take 25 only take first one
 
 				if opts.flip_test:
 					img_patch = input['img_patch']
@@ -220,29 +214,6 @@ def main():
 		preds = np.load(pred_pth)
 		ds_test.evaluate(preds, jt_adj=opts.adj, logger_test=logger_testFinal, if_svVis=True, if_svEval=True, pth_hd=pth_hd)
 	else:       # env issue,  models earlier otherwise,  env error
-		# original
-		# model = TaskGenNet(opts)  # with initialization already, already GPU-par
-
-		# MPPE specific loding
-		# cfg = Config()
-		# model_path = os.path.join(opts.model_dir, 'snapshot_24.pth.tar')
-		# assert os.path.exists(model_path), 'Cannot find model at ' + model_path
-		# logger_testFinal.info('Load checkpoint from {}'.format(model_path))
-		# model = get_pose_net(cfg, False, opts.ref_joints_num+1)     # the thorax
-		# model = DataParallel(model).cuda()
-		# ckpt = torch.load(model_path)
-		# model.load_state_dict(ckpt['network'])      # final_layer.weight  copy 1152 current 1088  , final loaded in is 18
-		# model.eval()
-
-		#  original loading
-		# if 0 == opts.start_epoch and 'y' == opts.if_scraG:
-		# 	model.load_bb_pretrain()  # init backbone
-		# elif opts.start_epoch > 0:  # load the epoch model
-		# 	model.load_networks(opts.start_epoch - 1)
-		# # if 'test' == opts.test_par:
-		# 	if_svEval = True        # only save test eval
-		# else:       # other test , don't save.
-		# 	if_svEval = False
 		if_svEval = True        # all saved
 		testLoop(model, ds_test, opts=opts, logger_test=logger_testFinal, if_svEval=if_svEval, if_svVis=True)
 

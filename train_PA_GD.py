@@ -1,7 +1,7 @@
 '''
 train the PA GD (generative , descriminative) net, specify the src(gt or pred) tar,  all gt right now.
-All possible components are provided. We only use SPA strategy at the moment.
-train with test.  Can skip test by setting if_test_PA.
+For SPA implementation, we do not activate D part in current setting.
+train with test.  Can skip train by setting if_test_PA to do test only.
 '''
 
 import torch
@@ -321,10 +321,10 @@ def main():
 	preds, gts = get_hm_arr_PA(opts)  # the pairded one, the prediction hm as test set
 	ds_test = P3D_D(preds, gts, opts, split='test')  #
 
-	if opts.if_gt_PA == 'y':        # use gt tar
+	if opts.if_gt_PA == 'y':        # use gt test set skel
 		ds_train = P3D_D(src_arr, gts, opts, split='train')     # trainset
-	else:   # or use train split
-		ds_train = P3D_D(src_arr, tar_arr, opts, split='train')     #
+	else:   # or use train split for target skeleton ( suppose avoide test set completely during training)
+		ds_train = P3D_D(src_arr, tar_arr, opts, split='train')     # tar array gt
 
 	train_loader = DataLoader(
 		dataset=ds_train,
@@ -343,7 +343,7 @@ def main():
 	optims = [optimizerG, optimizerD]
 	crits = [criterionG, criterionD]
 
-	if opts.if_test_PA == 'n':	        # this is ont for test session (only), do train
+	if opts.if_test_PA == 'n':	        # if not for test, do train
 		loss_li = []        # train loss
 		err_li = []         # err test
 		for epoch in range(start_epoch, opts.end_epoch_PA):
@@ -389,8 +389,6 @@ def main():
 				logger.info('>>> save best model to {}'.format(sv_pth))
 				torch.save(sv_dict, sv_pth)
 		loss_arr = np.array(loss_li)
-		# plt.plot(loss_arr)
-		# plt.show()
 
 		# save the loss_li for later
 		if opts.if_clip_grad == 'n':
@@ -421,7 +419,7 @@ def main():
 
 	pth_hd = osp.join(opts.rst_dir, pth_hd)
 	sv_pth = pth_hd +'_pred_hm_PA{}.npy'.format(opts.PA_G_mode) #     # Human36M_Btype-h36m_SBL-n_PA-n_exp_train_proto2_pred_hm_PA1.npy
-	logger.info('saving hte PA test pm to {}'.format(sv_pth))
+	logger.info('saving the PA test hm to {}'.format(sv_pth))
 	np.save(sv_pth, preds)      #
 
 if __name__ == '__main__':

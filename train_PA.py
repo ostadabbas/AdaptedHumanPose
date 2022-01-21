@@ -20,15 +20,6 @@ import utils.utils_pose  as ut_p
 from tqdm import tqdm
 import json
 
-# model
-# log
-# if resume load model
-# ds init according to opt, make loader, pred, tar read in file
-# test loader, from test session,  load the test files. h36, muco-> MuCoTS, geo, if train add transformaer
-# optimizer, loss
-# for epoch ,
-# print the MPJPE , loss
-# clean up the name test
 
 def loop(model, DL, epoch, phase='train', logger=None, **kwargs):
 	'''
