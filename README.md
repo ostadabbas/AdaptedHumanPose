@@ -148,6 +148,14 @@ If you find this work helpful, please cite the following papers:
   year={2021}
 }
 
+@inproceedings{liu2018semi,
+  title={A semi-supervised data augmentation approach using 3d graphical engines},
+  author={Liu, Shuangjun and Ostadabbas, Sarah},
+  booktitle={Proceedings of the European Conference on Computer Vision (ECCV) Workshops},
+  pages={0--0},
+  year={2018}
+}
+
 
 ## Acknowledgement
 This repo refers to the following works:
