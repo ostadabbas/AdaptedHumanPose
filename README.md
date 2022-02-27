@@ -141,11 +141,11 @@ Here, you can simply get the result for other cross set performance by replacing
 ## Citation:
 If you find this work helpful, please cite the following papers: 
 
-@article{liu2021adapted,
+@article{liu2022Adapted,
   title={Adapted Human Pose: Monocular 3D Human Pose Estimation with Zero Real 3D Pose Data},
-  author={Liu, Shuangjun and Sehgal, Naveen and Ostadabbas, Sarah},
-  journal={arXiv preprint arXiv:2105.10837},
-  year={2021}
+  author={Liu, Shuangjun and Ostadabbas, Sarah},
+  journal={Applied Intelligence},
+  year={2022}
 }
 
 @inproceedings{liu2018semi,
